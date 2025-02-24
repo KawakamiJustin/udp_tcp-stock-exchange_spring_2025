@@ -5,29 +5,29 @@ using namespace std;
 
 int main()
 {
-    cout << "Hello Welcome to the Stock Trading Platform\nPlease Enter Your User Name and Password\n";
+    cout << "[Client] Booting up.\n[Client] Logging in.\n";
     string username = "";
     string password = "";
-    cout << "Username:\t";
+    cout << "Please enter the username: ";
     cin >> username;
-    while(username.length() < 5 || username.length() > 50)
+    while(username.length() < 1 || username.length() > 50)
     {
-        cout << "Please enter a valid Username\n";
-        cout << "Username:\t";
+        cout << "Please enter a valid username\n";
+        cout << "Please enter the username: \t";
         cin >> username;
     }
-    cout << "Password:\t";
+    cout << "Please enter the password: ";
     cin >> password;
-    while(password.length() < 5 || password.length() > 50)
+    while(password.length() < 1 || password.length() > 50)
     {
-        cout << "Please enter a valid Password\n";
-        cout << "Password:\t";
+        cout << "Please enter a valid password\n";
+        cout << "Please enter the password: ";
         cin >> password;
     }
-    bool validity = false;
+    bool validity = false; //set to actual verification in serverM
     if(validity)
     {
-        cout << "Available Commands:\n";
+        cout << "[Client] You have been granted access. \n";
     }
     return 0;
 }
