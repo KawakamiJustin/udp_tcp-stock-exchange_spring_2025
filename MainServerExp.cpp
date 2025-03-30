@@ -12,11 +12,8 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
-#include <iostream>
 
 #define PORT "9034"   // Port we're listening on
-
-using namespace std;
 
 // Get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
@@ -207,7 +204,7 @@ int main(void)
                                 else
                                 {
                                     // Log what was sent
-                                    cout<<"Server sent to socket "<< dest_fd <<": "<< string(buf, nbytes) << endl;
+                                    printf("Server sent to socket %d: %.*s\n", dest_fd, nbytes, buf);
                                 }
                             }
                         }

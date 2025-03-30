@@ -17,7 +17,7 @@ using namespace std;
 #define PORT "45110" //the port client will be connecting to
 
 #define MAXDATASIZE 100
-
+/*
 // get sockaddr,IPv4orIPv6:
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -87,7 +87,13 @@ int serverConnect(int argc, char *argv[], string un, string pw)
     close(sockfd);
     
     return 0;
+}*/
+struct credentials {
+    string user;
+    string pw;
 }
+
+
 
 int main()
 {
@@ -110,10 +116,17 @@ int main()
         cout << "Please enter the password: ";
         cin >> password;
     }
+
+    string user_id = username +";"+ password;
+
+    int M_SOCK = socket();
+    send(M_SOCK ,id.c_str(), id.size(),0);
     bool validity = false; //set to actual verification in serverM
     if(validity)
     {
         cout << "[Client] You have been granted access. \n";
     }
+
+
     return 0;
 }
