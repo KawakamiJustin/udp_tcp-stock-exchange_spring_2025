@@ -60,6 +60,23 @@ void connectServer(int sockfd, struct sockaddr_in *server_addr)
     }
 }
 
+int getLocalPort(int TCP_Connect_sock)
+{
+    struct sockaddr_in my_addr;
+    socklen_t addrlen = sizeof(my_addr);
+    int getsock_check = getsockname(TCP_Connect_sock, (struct sockaddr*)&my_addr, (socklen_t*)&addrlen);
+
+    //Error checking
+    if(getsock_check == -1)
+    {
+        perror("getsockname");
+        exit(1);
+    }
+
+    int localPort = ntohs(my_addr.sin_port);
+    return localPort;
+}
+
 int main()
 {
     char buf[512];    // Buffer for client data
@@ -99,6 +116,9 @@ int main()
             buf[nbytes] = '\0';
             cout << "recevied: "<< buf << endl;
         }
+        cout << "What port am I?" << endl;
+        int localPort = getLocalPort(M_SOCK);
+        cout << localPort << endl;
         cout << "continue? y/n" << endl;
         cin >> stopSend;
     }

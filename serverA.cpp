@@ -5,13 +5,12 @@
 
 using namespace std;
 
-int main()
+map<string, string> onStartUp()
 {
     ifstream infile;
     infile.open("members.txt");
     if (!infile.is_open()) {
         cerr << "Server A failed to open members.txt" << endl;
-        return 1;
     }
     map<string, string> loginInfo; // creates new map
     string info;
@@ -29,11 +28,41 @@ int main()
     //string test = loginInfo.find("Mary");
     infile.close();
 
-    // Print the contents of the map to test if it's populated
-    /*cout << "Contents of loginInfo map:" << endl;
-    for (map<string, string>::iterator it = loginInfo.begin(); it != loginInfo.end(); ++it) {
-        cout << "Username: " << it->first << ", Password: " << it->second << endl;
-    }*/
+    return loginInfo;
+}
 
+bool matchCredentials(string user_name, string encrypted_pw, map<string, string> users)
+{
+    if(users.count(user_name) > 0 && encrypted_pw == users[user_name])
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+int main()
+{
+    map<string, string> users = onStartUp();
+    string user_name = "";
+    string pw = "";
+    cout << "enter username: ";
+    cin >> user_name;
+    cout << endl;
+    cout << "enter password: ";
+    cin >> pw;
+    cout << endl;
+    bool status = matchCredentials(user_name, pw, users);
+    if(status)
+    {
+        cout << "login successful" << endl;
+    }
+    else
+    {
+        cout << "login failed" << endl;
+    }
+    
     return 0;
 }
