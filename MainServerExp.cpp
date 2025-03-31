@@ -1,10 +1,7 @@
-/*
-** pollserver.c -- a cheezy multiperson chat server
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -12,8 +9,15 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
+#include <iostream>
 
-#define PORT "9034"   // Port we're listening on
+#define PORT "45110"   // Port we're listening on
+#define UDP_PORT "44110"
+#define AUTH_PORT "41110"
+#define PORT_PORT "42110"
+#define QUOT_PORT "43110"
+
+using namespace std;
 
 // Get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
@@ -102,6 +106,17 @@ void del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
     (*fd_count)--;
 }
 
+void passwordEncrypt(string password)
+{
+    
+}
+
+void udpClient()
+{
+
+}
+
+
 // Main
 int main(void)
 {
@@ -111,7 +126,7 @@ int main(void)
     struct sockaddr_storage remoteaddr; // Client address
     socklen_t addrlen;
 
-    char buf[256];    // Buffer for client data
+    char buf[512];    // Buffer for client data
 
     char remoteIP[INET6_ADDRSTRLEN];
 
@@ -154,8 +169,7 @@ int main(void)
                     // If listener is ready to read, handle new connection
 
                     addrlen = sizeof remoteaddr;
-                    newfd = accept(listener,
-                        (struct sockaddr *)&remoteaddr, &addrlen);
+                    newfd = accept(listener, (struct sockaddr *)&remoteaddr, &addrlen);
 
                     if (newfd == -1) {
                         perror("accept");
@@ -192,27 +206,24 @@ int main(void)
                         printf("Server received from socket %d: %.*s\n", pfds[i].fd, nbytes, buf);
                         // We got some good data from a client
 
-                        for(int j = 0; j < fd_count; j++) {
-                            // Send to everyone!
-                            int dest_fd = pfds[j].fd;
+                        string newMessage(buf);
+                        newMessage += ";" + to_string(sender_fd);
 
-                            // Except the listener and ourselves
-                            if (dest_fd != listener && dest_fd != sender_fd) {
-                                if (send(dest_fd, buf, nbytes, 0) == -1) {
-                                    perror("send");
-                                }
-                                else
-                                {
-                                    // Log what was sent
-                                    printf("Server sent to socket %d: %.*s\n", dest_fd, nbytes, buf);
-                                }
+                        // Except the listener and ourselves
+                        if (sender_fd != listener) {
+                            if (send(sender_fd, newMessage.c_str(), newMessage.size(), 0) == -1) {
+                                perror("send");
+                            }
+                            else
+                            {
+                                // Log what was sent
+                                printf("Server sent to socket %d: %.*s\n", sender_fd, int(newMessage.size()), newMessage.c_str());
                             }
                         }
+                        
                     }
                 } // END handle data from client
             } // END got ready-to-read from poll()
         } // END looping through file descriptors
     } // END for(;;)--and you thought it would never end!
-    
-    return 0;
 }

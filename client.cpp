@@ -14,10 +14,10 @@ using namespace std;
 
 #include <arpa/inet.h>
 
-#define PORT "45110" //the port client will be connecting to
+#define PORT 45110 //the port client will be connecting to
 
 #define MAXDATASIZE 100
-/*
+
 // get sockaddr,IPv4orIPv6:
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -28,75 +28,42 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-int serverConnect(int argc, char *argv[], string un, string pw)
+// Created initial socket
+int createSocket()
 {
-    int sockfd, numbytes;
-    char buf[MAXDATASIZE];
-    struct addrinfo hints, *servinfo, *p;
-    int rv;
-    char s[INET6_ADDRSTRLEN];
-
-    if (argc != 2) {
-        fprintf(stderr,"usage:clienthostname\n");
+    int sockfd;
+    sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1){
+        perror("client socket creation error");
         exit(1);
     }
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-
-    if ((rv = getaddrinfo(argv[1], PORT, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return 1;
-    }
-
-    // loopthroughalltheresultsandconnecttothefirst wecan
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((sockfd = socket(p->ai_family, p->ai_socktype,
-                p->ai_protocol)) ==-1) {
-            perror("client:socket");
-            continue;
-        }
-        if (connect(sockfd, p->ai_addr, p->ai_addrlen) ==-1) {
-            close(sockfd);
-            perror("client: connect");
-            continue;
-        }
-        break;
-    }
-
-    if (p == NULL) {
-        fprintf(stderr, "client: failed to connect\n");
-        return 2;
-    }
-
-    inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
-                s, sizeof s);
-    printf("client: connecting to %s\n", s);
-
-    freeaddrinfo(servinfo); // all done with this structure
-
-    if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) ==-1) {
-        perror("recv");
-        exit(1);
-    }
-    buf[numbytes] = '\0';
-
-    printf("client: received '%s'\n",buf);
-
-    close(sockfd);
-    
-    return 0;
-}*/
-struct credentials {
-    string user;
-    string pw;
+    return sockfd;
 }
 
+// Server to connect client to
+struct sockaddr_in defineServer()
+{
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr)); // clear memory
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+    return server_addr;
+}
 
+void connectServer(int sockfd, struct sockaddr_in *server_addr)
+{
+    if(connect(sockfd, (struct sockaddr *)server_addr, sizeof(*server_addr)) == -1)
+    {
+        perror("client could not connect");
+        exit(1);
+    }
+}
 
 int main()
 {
+    char buf[512];    // Buffer for client data
+
     cout << "[Client] Booting up.\n[Client] Logging in.\n";
     string username = "";
     string password = "";
@@ -117,16 +84,30 @@ int main()
         cin >> password;
     }
 
-    string user_id = username +";"+ password;
+    string user_id = string("credentials;") + username +";"+ password;
 
-    int M_SOCK = socket();
-    send(M_SOCK ,id.c_str(), id.size(),0);
-    bool validity = false; //set to actual verification in serverM
+    int M_SOCK = createSocket();
+    struct sockaddr_in addr = defineServer();
+    connectServer(M_SOCK, &addr);
+    string stopSend = "y";
+    while(stopSend == "y")
+    {
+        send(M_SOCK ,user_id.c_str(), user_id.size(), 0);
+        int nbytes = recv(M_SOCK, buf, sizeof(buf) - 1, 0);
+        if(nbytes > 0)
+        {
+            buf[nbytes] = '\0';
+            cout << "recevied: "<< buf << endl;
+        }
+        cout << "continue? y/n" << endl;
+        cin >> stopSend;
+    }
+    /*bool validity = recv();
     if(validity)
     {
         cout << "[Client] You have been granted access. \n";
-    }
-
+    }*/
+    close(M_SOCK);
 
     return 0;
 }
