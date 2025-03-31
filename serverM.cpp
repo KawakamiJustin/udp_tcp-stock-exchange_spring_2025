@@ -1,113 +1,229 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <string>
 #include <unistd.h>
-#include <errno.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include <iostream>
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <netdb.h>
-#include <string.h>
+#include <poll.h>
+#include <iostream>
+
+#define PORT "45110"   // Port we're listening on
+#define UDP_PORT "44110"
+#define AUTH_PORT "41110"
+#define PORT_PORT "42110"
+#define QUOT_PORT "43110"
 
 using namespace std;
-#define MYUDPPORT "44110" // TCP port users will connect to
-#define MYTCPPORT "45110" // UDP port users will connect to
-#define BACKLOG 10 // how many pending connections queue will hold
 
-void sigchld_handler(int s)
-{
-    // waitpid() might overwrite errno, so we save and restore it:
-    int saved_errno = errno;
-
-    while (waitpid(-1, NULL,WNOHANG) > 0);
-
-    errno = saved_errno;
-}
-
+// Get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
 {
-    if(sa->sa_family == AF_INET)
-    {
+    if (sa->sa_family == AF_INET) {
         return &(((struct sockaddr_in*)sa)->sin_addr);
     }
 
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-int main(void)
+// Return a listening socket
+int get_listener_socket(void)
 {
-    int sockfd, new_fd;
-    struct addrinfo hints, *servinfo, *p;
-    struct sockaddr_storage their_addr;
-    socklen_t sin_size;
-    struct sigaction sa;
-    int yes = 1;
-    char s[INET6_ADDRSTRLEN];
+    int listener;     // Listening socket descriptor
+    int yes=1;        // For setsockopt() SO_REUSEADDR, below
     int rv;
-    
 
-    // first, Load up address structs with getaddrinfo():
+    struct addrinfo hints, *ai, *p;
 
+    // Get us a socket and bind it
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC; // Use IPv4 or IPv6, whichever
-    hints.ai_socktype = SOCK_STREAM; 
-    hints.ai_flags = AI_PASSIVE; // use my IP
-    if((rv = getaddrinfo(NULL, MYTCPPORT, &hints, &servinfo)) != 0)
-    {
-        fprintf(stderr,"getaddrinfo: %s\n", gai_strerror(rv)):
-        return 1;
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+    if ((rv = getaddrinfo(NULL, PORT, &hints, &ai)) != 0) {
+        fprintf(stderr, "pollserver: %s\n", gai_strerror(rv));
+        exit(1);
     }
-
-
-    //loop though all the results and bind to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next)
-    {
-        if((sockfd = socket(p->ai_family, p-> ai_socktype, p->ai_protocol)) == -1)
-        {
-            perror("server: socket");
+    
+    for(p = ai; p != NULL; p = p->ai_next) {
+        listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (listener < 0) { 
             continue;
         }
+        
+        // Lose the pesky "address already in use" error message
+        setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
-        if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
-        {
-            perror("setsockopt");
-            exit(1);
-        }
-
-        if(bind(sockfd, p->ai_addr, p->ai_addrlen) == -1)
-        {
-            close(sockfd);
-            perror("server: bind");
+        if (bind(listener, p->ai_addr, p->ai_addrlen) < 0) {
+            close(listener);
             continue;
         }
 
         break;
     }
 
-    
-/*
-    // make a socket, bind it, and listen on it:
-
-    sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    bind(sockfd, res->ai_addr, res->ai_addrlen);
-
-    if(listen(sockfd, BACKLOG) == -1)
-    {
-        cout<<"Listen failed"<<endl;
+    // If we got here, it means we didn't get bound
+    if (p == NULL) {
         return -1;
     }
-    else
-    {
-        cout << "Server M is now listening on port: "<< MYTCPPORT << endl; 
+
+    freeaddrinfo(ai); // All done with this
+
+    // Listen
+    if (listen(listener, 10) == -1) {
+        return -1;
     }
 
-    // now accept an incoming connection:
+    return listener;
+}
 
-    addr_size = sizeof their_addr;
-    new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
-    */
+// Add a new file descriptor to the set
+void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size)
+{
+    // If we don't have room, add more space in the pfds array
+    if (*fd_count == *fd_size) {
+        *fd_size *= 2; // Double it
 
+        *pfds = (struct pollfd *)realloc(*pfds, sizeof(**pfds) * (*fd_size));
+    }
+
+    (*pfds)[*fd_count].fd = newfd;
+    (*pfds)[*fd_count].events = POLLIN; // Check ready-to-read
+    (*pfds)[*fd_count].revents = 0;
+
+    (*fd_count)++;
+}
+
+// Remove an index from the set
+void del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
+{
+    // Copy the one from the end over this one
+    pfds[i] = pfds[*fd_count-1];
+
+    (*fd_count)--;
+}
+
+void passwordEncrypt(string password)
+{
+    
+}
+
+void udpClient()
+{
+
+}
+
+
+// Main
+int main(void)
+{
+    int listener;     // Listening socket descriptor
+
+    int newfd;        // Newly accept()ed socket descriptor
+    struct sockaddr_storage remoteaddr; // Client address
+    socklen_t addrlen;
+
+    char buf[512];    // Buffer for client data
+
+    char remoteIP[INET6_ADDRSTRLEN];
+
+    // Start off with room for 5 connections
+    // (We'll realloc as necessary)
+    int fd_count = 0;
+    int fd_size = 5;
+    struct pollfd *pfds = (struct pollfd *)malloc(sizeof *pfds * fd_size);
+
+    // Set up and get a listening socket
+    listener = get_listener_socket();
+
+    if (listener == -1) {
+        fprintf(stderr, "error getting listening socket\n");
+        exit(1);
+    }
+
+    // Add the listener to set
+    pfds[0].fd = listener;
+    pfds[0].events = POLLIN; // Report ready to read on incoming connection
+
+    fd_count = 1; // For the listener
+
+    // Main loop
+    for(;;) {
+        int poll_count = poll(pfds, fd_count, -1);
+
+        if (poll_count == -1) {
+            perror("poll");
+            exit(1);
+        }
+
+        // Run through the existing connections looking for data to read
+        for(int i = 0; i < fd_count; i++) {
+
+            // Check if someone's ready to read
+            if (pfds[i].revents & (POLLIN | POLLHUP)) { // We got one!!
+
+                if (pfds[i].fd == listener) {
+                    // If listener is ready to read, handle new connection
+
+                    addrlen = sizeof remoteaddr;
+                    newfd = accept(listener, (struct sockaddr *)&remoteaddr, &addrlen);
+
+                    if (newfd == -1) {
+                        perror("accept");
+                    } else {
+                        add_to_pfds(&pfds, newfd, &fd_count, &fd_size);
+
+                        printf("pollserver: new connection from %s on "
+                            "socket %d\n",
+                            inet_ntop(remoteaddr.ss_family,
+                                get_in_addr((struct sockaddr*)&remoteaddr),
+                                remoteIP, INET6_ADDRSTRLEN),
+                            newfd);
+                    }
+                } else {
+                    // If not the listener, we're just a regular client
+                    int nbytes = recv(pfds[i].fd, buf, sizeof buf, 0);
+
+                    int sender_fd = pfds[i].fd;
+
+                    if (nbytes <= 0) {
+                        // Got error or connection closed by client
+                        if (nbytes == 0) {
+                            // Connection closed
+                            printf("pollserver: socket %d hung up\n", sender_fd);
+                        } else {
+                            perror("recv");
+                        }
+
+                        close(pfds[i].fd); // Bye!
+
+                        del_from_pfds(pfds, i, &fd_count);
+
+                    } else {
+                        printf("Server received from socket %d: %.*s\n", pfds[i].fd, nbytes, buf);
+                        // We got some good data from a client
+
+                        string newMessage(buf);
+                        newMessage += ";" + to_string(sender_fd);
+
+                        // Except the listener and ourselves
+                        if (sender_fd != listener) {
+                            if (send(sender_fd, newMessage.c_str(), newMessage.size(), 0) == -1) {
+                                perror("send");
+                            }
+                            else
+                            {
+                                // Log what was sent
+                                printf("Server sent to socket %d: %.*s\n", sender_fd, int(newMessage.size()), newMessage.c_str());
+                            }
+                        }
+                        
+                    }
+                } // END handle data from client
+            } // END got ready-to-read from poll()
+        } // END looping through file descriptors
+    } // END for(;;)--and you thought it would never end!
 }
