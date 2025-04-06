@@ -114,7 +114,7 @@ int main()
         if(nbytes > 0)
         {
             buf[nbytes] = '\0';
-            cout << "recevied: "<< buf << endl;
+            cout << "received: "<< buf << endl;
         }
         cout << "What port am I?" << endl;
         int localPort = getLocalPort(M_SOCK);

@@ -10,6 +10,7 @@
 #include <netdb.h>
 #include <poll.h>
 #include <iostream>
+#include <sstream>
 
 #define PORT "45110"   // Port we're listening on
 #define UDP_PORT "44110"
@@ -106,15 +107,177 @@ void del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
     (*fd_count)--;
 }
 
-void passwordEncrypt(string password)
+string passwordEncrypt(string receivedMsg)
 {
-    
+    istringstream stream(receivedMsg);
+    string parsedMsg, MsgType, usersname, password, socketNum;
+    string newMsg = "";
+    int parseNum = 0;
+    while(getline(stream, parsedMsg, ';'))
+    {
+        parseNum++;
+        if(parseNum == 1)
+        {
+            MsgType = parsedMsg;
+        }
+        if(parseNum == 2)
+        {
+            usersname = parsedMsg;
+        }
+        if(parseNum == 3)
+        {
+            password = parsedMsg;
+        }
+        if(parseNum == 4)
+        {
+            socketNum = parsedMsg;
+        }
+    }
+    cout << "[Server M] Received username " << usersname << " and password ****" << endl;
+    string encryptedPassword = "";
+    int shift = 3;
+    string uAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    string lAlphabet = "abcdefghijklmnopqrstuvwxyz";
+    string numbers = "0123456789";
+    for (char c : password)
+    {
+        if(isupper(c))
+        {
+            int index = uAlphabet.find(c);
+            int newIndex = (index + shift) % uAlphabet.length();
+            encryptedPassword += uAlphabet[newIndex];
+        }
+        else if(islower(c))
+        {
+            int index = lAlphabet.find(c);
+            int newIndex = (index + shift) % lAlphabet.length();
+            encryptedPassword += lAlphabet[newIndex];
+        }
+        else if(isdigit(c))
+        {
+            int index = numbers.find(c);
+            int newIndex = (index + shift) % numbers.length();
+            encryptedPassword += numbers[newIndex];
+        }
+        else
+        {
+            encryptedPassword += c;
+        }
+    }
+    newMsg = MsgType + ";" + usersname + ";" + encryptedPassword + ";" + socketNum;
+    return newMsg;
 }
 
-void udpClient()
+string operationType(string receivedMsg)
 {
+    istringstream stream(receivedMsg);
+    string choice;
+    getline(stream, choice, ';');
+    if(choice == "credentials")
+    {
+        return passwordEncrypt(receivedMsg);
+    }
+    if(choice == "portfolio")
+    {
 
+    }
+    if(choice == "quote")
+    {
+        
+    }
 }
+
+int startUDPServer()
+{
+    int sockfd;
+    struct addrinfo hints, *servinfo, *p;
+	int rv;
+
+    memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET; // set to AF_INET to use IPv4
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_flags = AI_PASSIVE; // use my IP
+
+	if ((rv = getaddrinfo(NULL, UDP_PORT, &hints, &servinfo)) != 0) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+	}
+
+	// loop through all the results and bind to the first we can
+	for(p = servinfo; p != NULL; p = p->ai_next) {
+		if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+			perror("listener: socket");
+			continue;
+		}
+
+		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+			close(sockfd);
+			perror("listener: bind");
+			continue;
+		}
+
+		break;
+	}
+
+	if (p == NULL) {
+		fprintf(stderr, "listener: failed to bind socket\n");
+	}
+
+	freeaddrinfo(servinfo);
+
+	cout << "[Server M] Booting up using UDP on port " << UDP_PORT << endl;
+    return sockfd;
+}
+
+string process_data(char *buf, int numbytes)
+{
+    buf[numbytes] = '\0';
+    string rawData(buf);
+    cout << "raw data: " << rawData << endl;
+    return rawData;
+}
+
+string listen_pkts(int sockfd)
+{
+    int numbytes;
+	struct sockaddr_storage their_addr;
+	char buf[512];
+	socklen_t addr_len;
+	char s[INET6_ADDRSTRLEN];
+	addr_len = sizeof their_addr;
+	if ((numbytes = recvfrom(sockfd, buf, 512-1 , 0,
+		(struct sockaddr *)&their_addr, &addr_len)) == -1) {
+		perror("recvfrom");
+		exit(1);
+	}
+
+	printf("listener: got packet from %s\n",
+		inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
+	printf("listener: packet is %d bytes long\n", numbytes);
+	buf[numbytes] = '\0';
+	printf("listener: packet contains \"%s\"\n", buf);
+    string data = process_data(buf, numbytes);
+    return data;
+}
+
+string udpSendMsg(string serverPort, string message, int mysockfd)
+{
+	struct addrinfo hints, *servinfo;
+
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET; // set to AF_INET to use IPv4
+	hints.ai_socktype = SOCK_DGRAM;
+
+	getaddrinfo("localhost", serverPort.c_str(), &hints, &servinfo);
+
+    sendto(mysockfd, message.c_str(), message.length(), 0, servinfo->ai_addr, servinfo->ai_addrlen);
+
+	freeaddrinfo(servinfo);
+    string listenData = listen_pkts(mysockfd);
+    cout << "Received "<< listenData <<" from server" << endl;
+    return listenData;
+}
+
+
 
 
 // Main
@@ -125,10 +288,13 @@ int main(void)
     int newfd;        // Newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr; // Client address
     socklen_t addrlen;
+    int udp_sockfd; // udp socket descriptor
 
     char buf[512];    // Buffer for client data
 
     char remoteIP[INET6_ADDRSTRLEN];
+
+    udp_sockfd = startUDPServer();
 
     // Start off with room for 5 connections
     // (We'll realloc as necessary)
@@ -149,6 +315,7 @@ int main(void)
     pfds[0].events = POLLIN; // Report ready to read on incoming connection
 
     fd_count = 1; // For the listener
+
 
     // Main loop
     for(;;) {
@@ -206,18 +373,20 @@ int main(void)
                         printf("Server received from socket %d: %.*s\n", pfds[i].fd, nbytes, buf);
                         // We got some good data from a client
 
-                        string newMessage(buf);
-                        newMessage += ";" + to_string(sender_fd);
+                        string recMessage(buf);
+                        recMessage += ";" + to_string(sender_fd);
+                        string newMessage = operationType(recMessage);
+                        string responseMsg = udpSendMsg(AUTH_PORT, newMessage, udp_sockfd);
 
                         // Except the listener and ourselves
                         if (sender_fd != listener) {
-                            if (send(sender_fd, newMessage.c_str(), newMessage.size(), 0) == -1) {
+                            if (send(sender_fd, responseMsg.c_str(), responseMsg.size(), 0) == -1) {
                                 perror("send");
                             }
                             else
                             {
                                 // Log what was sent
-                                printf("Server sent to socket %d: %.*s\n", sender_fd, int(newMessage.size()), newMessage.c_str());
+                                printf("Server sent to socket %d: %.*s\n", sender_fd, int(responseMsg.size()), responseMsg.c_str());
                             }
                         }
                         
