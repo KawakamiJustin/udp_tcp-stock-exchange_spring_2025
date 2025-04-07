@@ -8,10 +8,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <fstream>
 #include <iostream>
 #include <string>
+#include <map>
+#include <sstream>
+#include <vector>
 
 #define MYPORT "42110"	// the port users will be connecting to
+#define PORTM "44110"
 
 #define MAXBUFLEN 512
 using namespace std;
@@ -25,6 +30,49 @@ void *get_in_addr(struct sockaddr *sa)
 
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
+
+struct stock
+{
+	string stockName;
+	int quantity;
+	double avgPrice;
+};
+
+map<string, vector<stock>> onStartUp()
+{
+    ifstream infile;
+    infile.open("portfolios.txt");
+    if (!infile.is_open()) {
+        cerr << "Server P failed to open portfolios.txt" << endl;
+    }
+    map<string, stock> portfolio; // creates new map
+    string info;
+    vector<stock> stocks;
+    while(getline(infile, info))
+    {
+        stocks.clear();
+        int space = info.find(' '); 
+        string stockName = info.substr(0, space);
+        info = info.substr(space + 1);
+        string price;
+        while(!info.empty())
+        {   
+            space = info.find(' ');
+            
+            if (space == string::npos)
+            {
+                price = info;
+                info.clear();
+            }
+            else
+            {
+                price = info.substr(0, space);
+                info = info.substr(space + 1);
+            }
+            prices.push_back(stod(price));
+        }
+        stocks[stockName] = {prices, 0}; // populates map
+    }
 
 int startServer()
 {
