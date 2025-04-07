@@ -8,13 +8,42 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <iostream>
+#include <fstream>
 #include <string>
+#include <iostream>
+#include <map>
+#include <sstream>
 
-#define MYPORT "43110"	// the port users will be connecting to
-
+#define MYPORT "43110"
+#define PORTM "44110"
 #define MAXBUFLEN 512
 using namespace std;
+
+map<string, string> onStartUp()
+{
+    ifstream infile;
+    infile.open("quotes.txt");
+    if (!infile.is_open()) {
+        cerr << "Server A failed to open members.txt" << endl;
+    }
+    map<string, string> loginInfo; // creates new map
+    string info;
+    while(getline(infile, info))
+    {
+        // cout << info << endl;
+        int space = info.find(' '); // finds the space position between username and password in txt doc
+        string username = info.substr(0, space);
+        // cout << username <<endl;
+        string password = info.substr(space + 1);
+        // cout << password << endl;
+        loginInfo[username] = password; // populates map
+    }
+
+    //string test = loginInfo.find("Mary");
+    infile.close();
+
+    return loginInfo;
+}
 
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
@@ -69,15 +98,40 @@ int startServer()
 }
 
 
-string process_data(char *buf, int numbytes)
+string process_data(char *buf, int numbytes, map<string, string> users)
 {
     buf[numbytes] = '\0';
     string rawData(buf);
     cout << "raw data: " << rawData << endl;
-    return rawData;
+    istringstream stream(rawData);
+    string parsedMsg, MsgType, username, password, socketNum;
+    string newMsg = "";
+    int parseNum = 0;
+    while(getline(stream, parsedMsg, ';'))
+    {
+        parseNum++;
+        if(parseNum == 1)
+        {
+            MsgType = parsedMsg;
+        }
+        if(parseNum == 2)
+        {
+            username = parsedMsg;
+        }
+        if(parseNum == 3)
+        {
+            password = parsedMsg;
+        }
+        if(parseNum == 4)
+        {
+            socketNum = parsedMsg;
+        }
+    }
+    cout << "[Server A] Received username " << username << "and password "<< password << endl;
+	return "";
 }
 
-void listen_pkts(int sockfd)
+string listen_pkts(int sockfd, map<string, string> users)
 {
     int numbytes;
 	struct sockaddr_storage their_addr;
@@ -96,16 +150,38 @@ void listen_pkts(int sockfd)
 	printf("listener: packet is %d bytes long\n", numbytes);
 	buf[numbytes] = '\0';
 	printf("listener: packet contains \"%s\"\n", buf);
-    process_data(buf, numbytes);
+    string status = process_data(buf, numbytes, users);
+    return status;
 }
 
-
-int main(void)
+void udpSendMsg(string message, int mysockfd)
 {
-	int sockfd = startServer();
-    listen_pkts(sockfd);
+	struct addrinfo hints, *servinfo;
 
-	close(sockfd);
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET; // set to AF_INET to use IPv4
+	hints.ai_socktype = SOCK_DGRAM;
 
-	return 0;
+	getaddrinfo("localhost", PORTM, &hints, &servinfo);
+
+    sendto(mysockfd, message.c_str(), message.length(), 0, servinfo->ai_addr, servinfo->ai_addrlen);
+
+	freeaddrinfo(servinfo);
+}
+
+int main()
+{
+    cout << "[Server A] Booting up using UDP on port 41110 ";
+    string newMsg = "";
+    map<string, string> users = onStartUp();
+    int sockfd = startServer();
+    while(true)
+    {
+        newMsg = listen_pkts(sockfd, users);
+        cout << newMsg << endl;
+        udpSendMsg(newMsg, sockfd);
+    }
+    close(sockfd);
+    
+    return 0;
 }

@@ -24,6 +24,9 @@
         "type_traits": "cpp",
         "typeinfo": "cpp",
         "map": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "array": "cpp",
+        "tuple": "cpp",
+        "utility": "cpp"
     }
 }

@@ -11,6 +11,7 @@
 #include <poll.h>
 #include <iostream>
 #include <sstream>
+#include <tuple>
 
 #define PORT "45110"   // Port we're listening on
 #define UDP_PORT "44110"
@@ -97,7 +98,6 @@ void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size)
 
     (*fd_count)++;
 }
-
 // Remove an index from the set
 void del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
 {
@@ -168,23 +168,39 @@ string passwordEncrypt(string receivedMsg)
     return newMsg;
 }
 
-string operationType(string receivedMsg)
+void updateQuote(string message)
 {
+
+}
+
+tuple<string, string, bool> operationType(string receivedMsg)
+{
+    string msg = "";
     istringstream stream(receivedMsg);
     string choice;
     getline(stream, choice, ';');
     if(choice == "credentials")
     {
-        return passwordEncrypt(receivedMsg);
+        msg = passwordEncrypt(receivedMsg);
+        return make_tuple(msg, AUTH_PORT, false);
     }
     if(choice == "portfolio")
     {
-
+        msg = receivedMsg;
+        return make_tuple(msg, PORT_PORT, false);
+    }
+    if(choice == "transact")
+    {
+        msg = receivedMsg;
+        return make_tuple(msg, PORT_PORT, true);
     }
     if(choice == "quote")
     {
-        
+        msg = receivedMsg;
+        return make_tuple(msg, QUOT_PORT, false);
     }
+
+    return make_tuple("ERROR","", false);
 }
 
 int startUDPServer()
@@ -277,14 +293,19 @@ string udpSendMsg(string serverPort, string message, int mysockfd)
     return listenData;
 }
 
-
+int sockNum(string message)
+{
+    int socketpos = message.find_last_of(';') + 1;
+    string socketString = message.substr(socketpos);
+    return stoi(socketString);
+}
 
 
 // Main
 int main(void)
 {
     int listener;     // Listening socket descriptor
-
+    tuple<string,string, bool> operation;
     int newfd;        // Newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr; // Client address
     socklen_t addrlen;
@@ -343,11 +364,10 @@ int main(void)
                     } else {
                         add_to_pfds(&pfds, newfd, &fd_count, &fd_size);
 
-                        printf("pollserver: new connection from %s on "
-                            "socket %d\n",
+                        printf("pollserver: new connection from %s on ""socket %d\n",
                             inet_ntop(remoteaddr.ss_family,
-                                get_in_addr((struct sockaddr*)&remoteaddr),
-                                remoteIP, INET6_ADDRSTRLEN),
+                            get_in_addr((struct sockaddr*)&remoteaddr),
+                            remoteIP, INET6_ADDRSTRLEN),
                             newfd);
                     }
                 } else {
@@ -375,18 +395,28 @@ int main(void)
 
                         string recMessage(buf);
                         recMessage += ";" + to_string(sender_fd);
-                        string newMessage = operationType(recMessage);
-                        string responseMsg = udpSendMsg(AUTH_PORT, newMessage, udp_sockfd);
+                        operation = operationType(recMessage);
+                        string newMessage = get<0>(operation);
+                        string serverPort = get<1>(operation);
+                        bool updatePrice = get<2>(operation);
+                        
+                        string responseMsg = udpSendMsg(serverPort, newMessage, udp_sockfd);
+                        if (updatePrice)
+                        {
+                            string upMsg = "update;" + newMessage;
+                            string updateMsg = udpSendMsg(QUOT_PORT, upMsg, udp_sockfd);
+                        }
+                        int C_SOCK = sockNum(responseMsg);
 
-                        // Except the listener and ourselves
-                        if (sender_fd != listener) {
-                            if (send(sender_fd, responseMsg.c_str(), responseMsg.size(), 0) == -1) {
+                        // Except the listener
+                        if (C_SOCK != listener) {
+                            if (send(C_SOCK, responseMsg.c_str(), responseMsg.size(), 0) == -1) {
                                 perror("send");
                             }
                             else
                             {
                                 // Log what was sent
-                                printf("Server sent to socket %d: %.*s\n", sender_fd, int(responseMsg.size()), responseMsg.c_str());
+                                printf("Server sent to socket %d: %.*s\n", C_SOCK, int(responseMsg.size()), responseMsg.c_str());
                             }
                         }
                         

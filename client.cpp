@@ -9,6 +9,9 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sstream>
+#include <vector>
+#include <limits>
 
 using namespace std;
 
@@ -77,11 +80,8 @@ int getLocalPort(int TCP_Connect_sock)
     return localPort;
 }
 
-int main()
+string login(int sockfd)
 {
-    char buf[512];    // Buffer for client data
-
-    cout << "[Client] Booting up.\n[Client] Logging in.\n";
     string username = "";
     string password = "";
     cout << "Please enter the username: ";
@@ -100,33 +100,158 @@ int main()
         cout << "Please enter the password: ";
         cin >> password;
     }
-
     string user_id = string("credentials;") + username +";"+ password;
+    send(sockfd ,user_id.c_str(), user_id.size(), 0);
+    return username;
+}
 
+string parseAUTH(string receivedMsg)
+{
+    istringstream stream(receivedMsg);
+    string parsedMsg, usersname, status;
+    string newMsg = "";
+    int parseNum = 0;
+    while(getline(stream, parsedMsg, ';'))
+    {
+        parseNum++;
+        if(parseNum == 2)
+        {
+            usersname = parsedMsg;
+        }
+        if(parseNum == 3)
+        {
+            status = parsedMsg;
+        }
+    }
+    cout << "[Client] Received username " << usersname << " and status: " << status << endl;
+    return status;
+}
+
+void quote(int sockfd)
+{
+    string command = string("quote;all");
+    send(sockfd ,command.c_str(), command.size(), 0);
+}
+
+void quote(int sockfd, string name)
+{
+    string command = string("quote;") + name;
+    send(sockfd ,command.c_str(), command.size(), 0);
+}
+
+void transact(int sockfd, string operation, string stock, string quantity, string user)
+{
+    string command = string("transact") + operation + user + stock + quantity;
+    send(sockfd ,command.c_str(), command.size(), 0);
+}
+
+void getPortfolio(int sockfd, string user)
+{
+    string command = string("portfolio") + user;
+    send(sockfd ,command.c_str(), command.size(), 0);
+}
+
+int main()
+{
+    char buf[512];    // Buffer for client data
+
+    cout << "[Client] Booting up.\n[Client] Logging in.\n";
     int M_SOCK = createSocket();
     struct sockaddr_in addr = defineServer();
     connectServer(M_SOCK, &addr);
-    string stopSend = "y";
-    while(stopSend == "y")
+    string status = "FAILURE";
+    string user = login(M_SOCK);
+    int nbytes = recv(M_SOCK, buf, sizeof(buf) - 1, 0);
+    if(nbytes > 0)
     {
-        send(M_SOCK ,user_id.c_str(), user_id.size(), 0);
+        buf[nbytes] = '\0';
+        cout << "received: "<< buf << endl;
+        string recMessage(buf);
+        status = parseAUTH(recMessage);
+    }
+    while(status == "FAILURE")
+    {
+        //send(M_SOCK ,user_id.c_str(), user_id.size(), 0);
+        cout << "[Client] The credentials are incorrect. Please try again." <<endl;
+        user = login(M_SOCK);
         int nbytes = recv(M_SOCK, buf, sizeof(buf) - 1, 0);
         if(nbytes > 0)
         {
             buf[nbytes] = '\0';
-            cout << "received: "<< buf << endl;
+            //cout << "received: "<< buf << endl;
+            string recMessage(buf);
+            status = parseAUTH(recMessage);
         }
-        cout << "What port am I?" << endl;
-        int localPort = getLocalPort(M_SOCK);
-        cout << localPort << endl;
-        cout << "continue? y/n" << endl;
-        cin >> stopSend;
     }
-    /*bool validity = recv();
-    if(validity)
+    string choice = "";
+    cin.clear();
+    cin.ignore(numeric_limits<streamsize>::max(), '\n'); // clears cin from previous entries
+    while(status == "SUCCESS")
     {
         cout << "[Client] You have been granted access. \n";
-    }*/
+        cout << "[Client] Please enter the command:" << endl;
+        cout << ">\tquote \n>\tquote <stock name>\n>\tbuy <stock name> <number of shares>\n>\tsell <stock name> <number of shares>\n>\tportfolio\n>\texit" << endl;
+        vector<string> selectedOptions;
+        string word = "";
+        
+        cout<< "Enter your command here: ";
+        getline(cin, choice);
+        istringstream parsedChoices(choice);
+        selectedOptions.clear();
+        while (parsedChoices >> word)
+        {
+            selectedOptions.push_back(word);
+        }
+        if(selectedOptions.empty())
+        {
+            cout << "No command entered. Please Try again." << endl;
+            continue;
+        }
+        
+        if (selectedOptions[0] == "quote")
+        {
+            if(selectedOptions.size() == 2)
+            {
+                quote(M_SOCK, selectedOptions[1]);
+            }
+            else if (selectedOptions.size() == 1)
+            {
+                quote(M_SOCK);
+            }
+            else
+            {
+                cout << "Invalid use of quote" << endl;
+            }
+        }
+        else if (selectedOptions[0] == "buy" || selectedOptions[0] == "sell")
+        {
+            if(selectedOptions.size() == 3)
+            {
+                transact(M_SOCK, selectedOptions[0], selectedOptions[1], selectedOptions[2], user);
+            }
+            else
+            {
+                cout << "Invalid use of buy or sell" << endl;
+            }
+        }
+        else if (selectedOptions[0] == "portfolio" && selectedOptions.size() == 1)
+        {
+            getPortfolio(M_SOCK, user);
+        }
+        else if (selectedOptions[0] == "exit")
+        {
+            break;
+        }
+        else
+        {
+            cout << "Invalid option selected. Please try again." << endl;
+        }
+    }
+    /*
+    cout << "What port am I?" << endl;
+    int localPort = getLocalPort(M_SOCK);
+    cout << localPort << endl;
+    */
     close(M_SOCK);
 
     return 0;
