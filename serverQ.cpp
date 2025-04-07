@@ -13,36 +13,59 @@
 #include <iostream>
 #include <map>
 #include <sstream>
+#include <vector>
 
 #define MYPORT "43110"
 #define PORTM "44110"
 #define MAXBUFLEN 512
 using namespace std;
 
-map<string, string> onStartUp()
+struct priceData
+{
+    vector<double> prices;
+    int priceIndex;
+};
+
+map<string, priceData> onStartUp()
 {
     ifstream infile;
     infile.open("quotes.txt");
     if (!infile.is_open()) {
-        cerr << "Server A failed to open members.txt" << endl;
+        cerr << "Server A failed to open quotes.txt" << endl;
     }
-    map<string, string> loginInfo; // creates new map
+    map<string, priceData> stocks; // creates new map
     string info;
+    vector<double> prices;
     while(getline(infile, info))
     {
-        // cout << info << endl;
-        int space = info.find(' '); // finds the space position between username and password in txt doc
-        string username = info.substr(0, space);
-        // cout << username <<endl;
-        string password = info.substr(space + 1);
-        // cout << password << endl;
-        loginInfo[username] = password; // populates map
+        prices.clear();
+        int space = info.find(' '); 
+        string stockName = info.substr(0, space);
+        info = info.substr(space + 1);
+        string price;
+        while(!info.empty())
+        {   
+            space = info.find(' ');
+            
+            if (space == string::npos)
+            {
+                price = info;
+                info.clear();
+            }
+            else
+            {
+                price = info.substr(0, space);
+                info = info.substr(space + 1);
+            }
+            prices.push_back(stod(price));
+        }
+        stocks[stockName] = {prices, 0}; // populates map
     }
 
     //string test = loginInfo.find("Mary");
     infile.close();
 
-    return loginInfo;
+    return stocks;
 }
 
 // get sockaddr, IPv4 or IPv6:
@@ -171,17 +194,44 @@ void udpSendMsg(string message, int mysockfd)
 
 int main()
 {
-    cout << "[Server A] Booting up using UDP on port 41110 ";
+    cout << "[Server Q] Booting up using UDP on port 41110 " << endl;
     string newMsg = "";
-    map<string, string> users = onStartUp();
+    map<string, priceData> quotes = onStartUp();
+    string stockName;
+    int index;
+    vector<double> prices;
+    
+    while(stockName != "quit")
+    {
+        prices.clear();
+        cout << "enter stock name: ";
+        cin >> stockName;
+        cout << endl;
+        if(quotes.find(stockName) != quotes.end())
+        {
+            prices = quotes[stockName].prices;
+            index = quotes[stockName].priceIndex;
+            double curprice = prices[index];
+            cout << stockName << " current price: $" << curprice;
+            if(index == prices.size() - 1)
+            {
+                quotes[stockName].priceIndex = 0;
+            }
+            else{
+                quotes[stockName].priceIndex++;
+            }
+            cout << endl;
+        }
+    }
+    /*
     int sockfd = startServer();
     while(true)
     {
-        newMsg = listen_pkts(sockfd, users);
+        newMsg = listen_pkts(sockfd, quotes);
         cout << newMsg << endl;
         udpSendMsg(newMsg, sockfd);
     }
     close(sockfd);
-    
+    */
     return 0;
 }
