@@ -14,6 +14,7 @@
 #include <map>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 
 #define MYPORT "42110"	// the port users will be connecting to
 #define PORTM "44110"
@@ -45,34 +46,52 @@ map<string, vector<stock>> onStartUp()
     if (!infile.is_open()) {
         cerr << "Server P failed to open portfolios.txt" << endl;
     }
-    map<string, stock> portfolio; // creates new map
-    string info;
+    map<string, vector<stock>> portfolio; // creates new map
+    string info, userID;
     vector<stock> stocks;
+	stock stockInfo;
+
     while(getline(infile, info))
     {
-        stocks.clear();
-        int space = info.find(' '); 
-        string stockName = info.substr(0, space);
-        info = info.substr(space + 1);
-        string price;
-        while(!info.empty())
-        {   
-            space = info.find(' ');
-            
-            if (space == string::npos)
-            {
-                price = info;
-                info.clear();
-            }
-            else
-            {
-                price = info.substr(0, space);
-                info = info.substr(space + 1);
-            }
-            prices.push_back(stod(price));
-        }
-        stocks[stockName] = {prices, 0}; // populates map
+		int spaceCount = count(info.begin() , info.end(), ' ');
+		if(!info.empty() && spaceCount < 2)
+		{
+			if(!userID.empty())
+			{
+				portfolio[userID] = stocks;
+			}
+			userID = info;
+			cout << "Parsing User: " << userID << endl;
+			stocks.clear();
+		}
+		else if (!info.empty() && spaceCount >= 2)
+		{
+			int space = info.find(' ');
+        	stockInfo.stockName = info.substr(0, space);
+			cout << "Adding stock: " << stockInfo.stockName << " for user: " << userID << endl;
+
+			info = info.substr(space + 1);
+			space = info.find(' ');
+			stockInfo.quantity = stoi(info.substr(0, space));
+			cout << "Adding quantity: "<< stockInfo.quantity <<" for stock " << stockInfo.stockName << " for user: " << userID << endl;
+
+        	info = info.substr(space + 1);
+			//space = info.find(' ');
+			stockInfo.avgPrice = stod(info);
+			cout << "Adding avgprice: "<< stockInfo.avgPrice <<" for stock " << stockInfo.stockName << " for user: " << userID << endl;
+
+			stocks.push_back(stockInfo);
+		}
+        
     }
+
+	if (!userID.empty())
+	{
+		portfolio[userID] = stocks;
+	}
+
+	return portfolio;
+}
 
 int startServer()
 {
@@ -150,10 +169,25 @@ void listen_pkts(int sockfd)
 
 int main(void)
 {
-	int sockfd = startServer();
-    listen_pkts(sockfd);
+	//int sockfd = startServer();
+    //listen_pkts(sockfd);
 
-	close(sockfd);
+	//close(sockfd);
+	map<string, vector<stock>> portfolio = onStartUp();
+	for (const auto& pair : portfolio)
+	{
+		cout <<"User: " <<pair.first <<'\n';
+		for (const auto& s : pair.second)
+		{
+			cout << "Stock Name: " << s.stockName
+				<< " Stock Quantity: " << s.quantity
+				<< " Stock Price: " << s.avgPrice << '\n';
+		}
+		if (pair.second.empty())
+		{
+			cout << " No stocks assigned to this user. \n";
+		}
+	}
 
 	return 0;
 }
