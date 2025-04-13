@@ -18,6 +18,7 @@
 #define AUTH_PORT "41110"
 #define PORT_PORT "42110"
 #define QUOT_PORT "43110"
+#define MAXBUFLEN 512
 
 using namespace std;
 
@@ -185,7 +186,7 @@ tuple<string, string, bool> operationType(string receivedMsg)
         msg = passwordEncrypt(receivedMsg);
         return make_tuple(msg, AUTH_PORT, false);
     }
-    if(choice == "portfolio")
+    if(choice == "position")
     {
         msg = receivedMsg;
         return make_tuple(msg, PORT_PORT, false);
@@ -200,7 +201,6 @@ tuple<string, string, bool> operationType(string receivedMsg)
         msg = receivedMsg;
         return make_tuple(msg, QUOT_PORT, false);
     }
-
     return make_tuple("ERROR","", false);
 }
 
@@ -257,11 +257,11 @@ string listen_pkts(int sockfd)
 {
     int numbytes;
 	struct sockaddr_storage their_addr;
-	char buf[512];
+	char buf[MAXBUFLEN];
 	socklen_t addr_len;
 	char s[INET6_ADDRSTRLEN];
 	addr_len = sizeof their_addr;
-	if ((numbytes = recvfrom(sockfd, buf, 512-1 , 0,
+	if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
 		(struct sockaddr *)&their_addr, &addr_len)) == -1) {
 		perror("recvfrom");
 		exit(1);
@@ -319,7 +319,7 @@ int main(void)
     socklen_t addrlen;
     int udp_sockfd; // udp socket descriptor
 
-    char buf[512];    // Buffer for client data
+    char buf[MAXBUFLEN];    // Buffer for client data
 
     char remoteIP[INET6_ADDRSTRLEN];
 
@@ -380,7 +380,7 @@ int main(void)
                     }
                 } else {
                     // If not the listener, we're just a regular client
-                    memset(buf, 0, sizeof(buf));
+                    memset(buf, 0, sizeof(buf)); // clear buffer
                     int nbytes = recv(pfds[i].fd, buf, sizeof buf, 0);
 
                     int sender_fd = pfds[i].fd;

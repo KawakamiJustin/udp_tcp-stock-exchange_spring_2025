@@ -18,8 +18,8 @@ using namespace std;
 #include <arpa/inet.h>
 
 #define PORT 45110 //the port client will be connecting to
-
-#define MAXDATASIZE 100
+#define MAXBUFLEN 512
+//#define MAXDATASIZE 100
 
 // get sockaddr,IPv4orIPv6:
 void *get_in_addr(struct sockaddr *sa)
@@ -80,6 +80,24 @@ int getLocalPort(int TCP_Connect_sock)
     return localPort;
 }
 
+string recvString(int M_SOCK)
+{
+    char buf[MAXBUFLEN];
+    memset(buf, 0, sizeof(buf)); // clear buffer
+    int nbytes = recv(M_SOCK, buf, sizeof(buf) - 1, 0);
+    if(nbytes > 0)
+    {
+        buf[nbytes] = '\0';
+        cout << "received: "<< buf << endl;
+        string recMessage(buf);
+        return recMessage;
+    }
+    else
+    {
+        return "";
+    }
+}
+
 string login(int sockfd)
 {
     string username = "";
@@ -127,35 +145,111 @@ string parseAUTH(string receivedMsg)
     return status;
 }
 
+void parseAllQuotes(int sockfd)
+{
+    string receivedMsg = recvString(sockfd);
+    istringstream stream(receivedMsg);
+    string parsedMsg, msgType, startFlag;
+    string newMsg = "";
+    int parseNum = 0;
+    int localPort = getLocalPort(sockfd);
+    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    while(getline(stream, parsedMsg, ';'))
+    {
+        parseNum++;
+        if(parseNum == 1)
+        {
+            msgType = parsedMsg;
+        }
+        else if(parseNum == 2)
+        {
+            startFlag = parsedMsg;
+        }
+        else if (parsedMsg == "end")
+        {
+            break;
+        }
+        else if (parseNum % 2 == 1)
+        {
+            cout << parsedMsg << "\t";
+        }
+        else
+        {
+            cout << parsedMsg << endl;
+            cout << endl;
+        }
+    }
+    
+}
+
+void parseQuote(int sockfd)
+{
+    string receivedMsg = recvString(sockfd);
+    istringstream stream(receivedMsg);
+    string parsedMsg, msgType, stockName, stockPrice;
+    string newMsg = "";
+    int parseNum = 0;
+    while(getline(stream, parsedMsg, ';'))
+    {
+        parseNum++;
+        if(parseNum == 1)
+        {
+            msgType = parsedMsg;
+        }
+        if(parseNum == 2)
+        {
+            stockName = parsedMsg;
+        }
+        if(parseNum == 3)
+        {
+            stockPrice = parsedMsg;
+        }
+    }
+    int localPort = getLocalPort(sockfd);
+    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    if(stockPrice == "NA")
+    {
+        cout << stockName << " does not exist. Please try again."<< endl;
+    }
+    else
+    {
+        cout << stockName << "\t" << stockPrice << endl;
+        cout << endl;
+    }
+    
+}
+
 void quote(int sockfd)
 {
     string command = string("quote;all");
-    cout << "sending to serverM: " << command << endl;
+    cout << "[Client] Sent a quote request to the main server"<< endl;
     send(sockfd ,command.c_str(), command.size(), 0);
+    parseAllQuotes(sockfd);
 }
 
 void quote(int sockfd, string name)
 {
     string command = string("quote;") + name;
-    cout << "sending to serverM: " << command << endl;
+    cout << "[Client] Sent a quote request to the main server"<< endl;
     send(sockfd ,command.c_str(), command.size(), 0);
+    parseQuote(sockfd);
 }
 
 void transact(int sockfd, string operation, string stock, string quantity, string user)
 {
-    string command = string("transact") + operation + user + stock + quantity;
+    string command = string("transact;") + operation + ";" + user + ";" + stock + ";" + quantity;
     send(sockfd ,command.c_str(), command.size(), 0);
 }
 
 void getPortfolio(int sockfd, string user)
 {
-    string command = string("portfolio") + user;
+    string command = string("position;") + user;
     send(sockfd ,command.c_str(), command.size(), 0);
 }
 
 int main()
 {
-    char buf[512];    // Buffer for client data
+    char buf[MAXBUFLEN];    // Buffer for client data
 
     cout << "[Client] Booting up.\n[Client] Logging in.\n";
     int M_SOCK = createSocket();
@@ -180,7 +274,7 @@ int main()
         if(nbytes > 0)
         {
             buf[nbytes] = '\0';
-            //cout << "received: "<< buf << endl;
+            cout << "received: "<< buf << endl;
             string recMessage(buf);
             status = parseAUTH(recMessage);
         }
@@ -195,7 +289,7 @@ int main()
     while(status == "SUCCESS")
     {
         cout << "[Client] Please enter the command:" << endl;
-        cout << ">\tquote \n>\tquote <stock name>\n>\tbuy <stock name> <number of shares>\n>\tsell <stock name> <number of shares>\n>\tportfolio\n>\texit" << endl;
+        cout << ">\tquote \n>\tquote <stock name>\n>\tbuy <stock name> <number of shares>\n>\tsell <stock name> <number of shares>\n>\tposition\n>\texit" << endl;
         vector<string> selectedOptions;
         string word = "";
         
@@ -209,7 +303,7 @@ int main()
         }
         if(selectedOptions.empty())
         {
-            cout << "No command entered. Please Try again." << endl;
+            cout << "No command entered. Please try again." << endl;
             continue;
         }
         
@@ -239,7 +333,7 @@ int main()
                 cout << "Invalid use of buy or sell" << endl;
             }
         }
-        else if (selectedOptions[0] == "portfolio" && selectedOptions.size() == 1)
+        else if (selectedOptions[0] == "position" && selectedOptions.size() == 1)
         {
             getPortfolio(M_SOCK, user);
         }

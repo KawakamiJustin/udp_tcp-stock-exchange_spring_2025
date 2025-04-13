@@ -136,15 +136,45 @@ int startServer()
 }
 
 
-string process_data(char *buf, int numbytes)
+string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfolio)
 {
     buf[numbytes] = '\0';
     string rawData(buf);
     cout << "raw data: " << rawData << endl;
-    return rawData;
+    istringstream stream(rawData);
+    string parsedMsg, MsgType, transactType, quantity, price,  socketNum;
+    string newMsg = "";
+    int parseNum = 0;
+    while(getline(stream, parsedMsg, ';'))
+    {
+        parseNum++;
+        if(parseNum == 1)
+        {
+            MsgType = parsedMsg;
+        }
+        if(parseNum == 2 && MsgType != "position")
+        {
+            whichQuote = parsedMsg;
+        }
+        if(parseNum == 3)
+        {
+            socketNum = parsedMsg;
+        }
+    }
+    if(MsgType == "position")
+    {
+        //updatePrice(quotes, whichQuote);
+        return "";
+    }
+    else if (MsgType == "quote")
+    {
+        //string msg = getQuote(quotes, whichQuote);
+        newMsg = MsgType + ";"  + ";" + socketNum;
+        return newMsg;
+    }
 }
 
-void listen_pkts(int sockfd)
+string listen_pkts(int sockfd, map<string, vector<stock>> &portfolio)
 {
     int numbytes;
 	struct sockaddr_storage their_addr;
@@ -163,18 +193,18 @@ void listen_pkts(int sockfd)
 	printf("listener: packet is %d bytes long\n", numbytes);
 	buf[numbytes] = '\0';
 	printf("listener: packet contains \"%s\"\n", buf);
-    process_data(buf, numbytes);
+    string status = process_data(buf, numbytes, portfolio);
+    return status;
 }
 
 
 int main(void)
 {
-	//int sockfd = startServer();
-    //listen_pkts(sockfd);
-
-	//close(sockfd);
+	int sockfd = startServer();
 	map<string, vector<stock>> portfolio = onStartUp();
-	for (const auto& pair : portfolio)
+	listen_pkts(sockfd, portfolio);
+
+	/*for (const auto& pair : portfolio)
 	{
 		cout <<"User: " <<pair.first <<'\n';
 		for (const auto& s : pair.second)
@@ -187,7 +217,7 @@ int main(void)
 		{
 			cout << " No stocks assigned to this user. \n";
 		}
-	}
-
+	}*/
+	close(sockfd);
 	return 0;
 }

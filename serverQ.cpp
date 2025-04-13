@@ -277,9 +277,7 @@ int main()
     string newMsg = "";
     map<string, priceData> quotes = onStartUp();
     int sockfd = startServer();
-
-    const int bufferSize = 1024;
-    char buffer[bufferSize];
+    char buffer[MAXBUFLEN];
     string stockName;
     /*while (stockName != "quit")
     {

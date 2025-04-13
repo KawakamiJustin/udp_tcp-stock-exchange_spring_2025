@@ -28,6 +28,7 @@
         "array": "cpp",
         "tuple": "cpp",
         "utility": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "sstream": "cpp"
     }
 }
