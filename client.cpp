@@ -130,12 +130,14 @@ string parseAUTH(string receivedMsg)
 void quote(int sockfd)
 {
     string command = string("quote;all");
+    cout << "sending to serverM: " << command << endl;
     send(sockfd ,command.c_str(), command.size(), 0);
 }
 
 void quote(int sockfd, string name)
 {
     string command = string("quote;") + name;
+    cout << "sending to serverM: " << command << endl;
     send(sockfd ,command.c_str(), command.size(), 0);
 }
 
@@ -186,9 +188,12 @@ int main()
     string choice = "";
     cin.clear();
     cin.ignore(numeric_limits<streamsize>::max(), '\n'); // clears cin from previous entries
-    while(status == "SUCCESS")
+    if(status == "SUCCESS")
     {
         cout << "[Client] You have been granted access. \n";
+    }
+    while(status == "SUCCESS")
+    {
         cout << "[Client] Please enter the command:" << endl;
         cout << ">\tquote \n>\tquote <stock name>\n>\tbuy <stock name> <number of shares>\n>\tsell <stock name> <number of shares>\n>\tportfolio\n>\texit" << endl;
         vector<string> selectedOptions;
@@ -240,6 +245,7 @@ int main()
         }
         else if (selectedOptions[0] == "exit")
         {
+            close(M_SOCK);
             break;
         }
         else
@@ -252,7 +258,7 @@ int main()
     int localPort = getLocalPort(M_SOCK);
     cout << localPort << endl;
     */
-    close(M_SOCK);
+    
 
     return 0;
 }

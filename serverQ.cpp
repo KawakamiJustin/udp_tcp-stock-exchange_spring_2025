@@ -14,6 +14,7 @@
 #include <map>
 #include <sstream>
 #include <vector>
+#include <iomanip>
 
 #define MYPORT "43110"
 #define PORTM "44110"
@@ -31,7 +32,7 @@ map<string, priceData> onStartUp()
     ifstream infile;
     infile.open("quotes.txt");
     if (!infile.is_open()) {
-        cerr << "Server A failed to open quotes.txt" << endl;
+        cerr << "Server Q failed to open quotes.txt" << endl;
     }
     map<string, priceData> stocks; // creates new map
     string info;
@@ -62,7 +63,6 @@ map<string, priceData> onStartUp()
         stocks[stockName] = {prices, 0}; // populates map
     }
 
-    //string test = loginInfo.find("Mary");
     infile.close();
 
     return stocks;
@@ -120,14 +120,78 @@ int startServer()
     return sockfd;
 }
 
+void updatePrice(map<string, priceData> &quotes, string stockName)
+{
+    int index;
+    vector<double> prices;
+    prices.clear();
+    if(quotes.find(stockName) != quotes.end())
+    {
+        prices = quotes[stockName].prices;
+        index = quotes[stockName].priceIndex;
+        double curprice = prices[index];
+        cout << "[Server Q] Received a time forward request for " << stockName << " the current price of that stock is " << curprice << " at time " << index << endl;
+        if(index == prices.size() - 1)
+        {
+            quotes[stockName].priceIndex = 0;
+        }
+        else{
+            quotes[stockName].priceIndex++;
+        }
+        cout << endl;
+    }
+}
 
-string process_data(char *buf, int numbytes, map<string, string> users)
+string getQuote(map<string, priceData> &quotes, string stockName)
+{
+    string quoteMsg = "";
+    string quoteName = "";
+    double quotePrice;
+    priceData priceInfo;
+    if (stockName == "all")
+    {
+        quoteMsg += "start;";
+        int mapSize = quotes.size();
+        for (const auto &entry : quotes)
+        {
+            quoteName = entry.first;
+            priceInfo = entry.second;
+            quotePrice = priceInfo.prices[priceInfo.priceIndex];
+
+            ostringstream stream;
+            stream << fixed << setprecision(2) << quotePrice;
+
+            quoteMsg += quoteName + ";" + stream.str() + ";";
+        }
+        quoteMsg += "end";
+    }
+    else
+    {
+        if(quotes.find(stockName) != quotes.end())
+        {
+            priceInfo = quotes[stockName];
+            quotePrice = priceInfo.prices[priceInfo.priceIndex];
+
+            ostringstream stream;
+            stream << fixed << setprecision(2) << quotePrice;
+
+            quoteMsg = stockName + ";" + stream.str();
+        }
+        else
+        {
+            quoteMsg = stockName + ";NA";
+        }
+    }
+    return quoteMsg;
+}
+
+string process_data(char *buf, int numbytes, map<string, priceData> &quotes)
 {
     buf[numbytes] = '\0';
     string rawData(buf);
     cout << "raw data: " << rawData << endl;
     istringstream stream(rawData);
-    string parsedMsg, MsgType, username, password, socketNum;
+    string parsedMsg, MsgType, whichQuote, socketNum;
     string newMsg = "";
     int parseNum = 0;
     while(getline(stream, parsedMsg, ';'))
@@ -137,24 +201,37 @@ string process_data(char *buf, int numbytes, map<string, string> users)
         {
             MsgType = parsedMsg;
         }
-        if(parseNum == 2)
+        if(parseNum == 2 && MsgType != "update")
         {
-            username = parsedMsg;
+            whichQuote = parsedMsg;
         }
-        if(parseNum == 3)
+        if(parseNum == 3 && MsgType != "update")
         {
-            password = parsedMsg;
+            socketNum = parsedMsg;
         }
-        if(parseNum == 4)
+        else if (parseNum == 3 && MsgType == "update")
+        {
+            whichQuote = parsedMsg;
+        }
+        if (parseNum == 4 && MsgType == "update")
         {
             socketNum = parsedMsg;
         }
     }
-    cout << "[Server A] Received username " << username << "and password "<< password << endl;
-	return "";
+    if(MsgType == "update")
+    {
+        updatePrice(quotes, whichQuote);
+        return "";
+    }
+    else if (MsgType == "quote")
+    {
+        string msg = getQuote(quotes, whichQuote);
+        newMsg = MsgType + ";" + msg + ";" + socketNum;
+        return newMsg;
+    }
 }
 
-string listen_pkts(int sockfd, map<string, string> users)
+string listen_pkts(int sockfd, map<string, priceData> &quotes)
 {
     int numbytes;
 	struct sockaddr_storage their_addr;
@@ -173,7 +250,7 @@ string listen_pkts(int sockfd, map<string, string> users)
 	printf("listener: packet is %d bytes long\n", numbytes);
 	buf[numbytes] = '\0';
 	printf("listener: packet contains \"%s\"\n", buf);
-    string status = process_data(buf, numbytes, users);
+    string status = process_data(buf, numbytes, quotes);
     return status;
 }
 
@@ -192,39 +269,26 @@ void udpSendMsg(string message, int mysockfd)
 	freeaddrinfo(servinfo);
 }
 
+
+
 int main()
 {
-    cout << "[Server Q] Booting up using UDP on port 41110 " << endl;
+    cout << "[Server Q] Booting up using UDP on port 43110 " << endl;
     string newMsg = "";
     map<string, priceData> quotes = onStartUp();
-    string stockName;
-    int index;
-    vector<double> prices;
-    
-    while(stockName != "quit")
-    {
-        prices.clear();
-        cout << "enter stock name: ";
-        cin >> stockName;
-        cout << endl;
-        if(quotes.find(stockName) != quotes.end())
-        {
-            prices = quotes[stockName].prices;
-            index = quotes[stockName].priceIndex;
-            double curprice = prices[index];
-            cout << stockName << " current price: $" << curprice;
-            if(index == prices.size() - 1)
-            {
-                quotes[stockName].priceIndex = 0;
-            }
-            else{
-                quotes[stockName].priceIndex++;
-            }
-            cout << endl;
-        }
-    }
-    /*
     int sockfd = startServer();
+
+    const int bufferSize = 1024;
+    char buffer[bufferSize];
+    string stockName;
+    /*while (stockName != "quit")
+    {
+        //cout << "Enter data (format update;quote|quote;stock;socketNum): ";
+        //cin.getline(buffer, bufferSize);
+        //int numbytes = strlen(buffer);
+        //string output = process_data(buffer, numbytes, quotes);
+        //cout << output << endl;
+    }*/
     while(true)
     {
         newMsg = listen_pkts(sockfd, quotes);
@@ -232,6 +296,5 @@ int main()
         udpSendMsg(newMsg, sockfd);
     }
     close(sockfd);
-    */
     return 0;
 }

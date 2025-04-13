@@ -177,6 +177,7 @@ tuple<string, string, bool> operationType(string receivedMsg)
 {
     string msg = "";
     istringstream stream(receivedMsg);
+    cout << "operationType received message: " << receivedMsg << endl;
     string choice;
     getline(stream, choice, ';');
     if(choice == "credentials")
@@ -275,7 +276,7 @@ string listen_pkts(int sockfd)
     return data;
 }
 
-string udpSendMsg(string serverPort, string message, int mysockfd)
+string udpSendMsg(string serverPort, string message, int mysockfd, bool updatePrice)
 {
 	struct addrinfo hints, *servinfo;
 
@@ -288,9 +289,16 @@ string udpSendMsg(string serverPort, string message, int mysockfd)
     sendto(mysockfd, message.c_str(), message.length(), 0, servinfo->ai_addr, servinfo->ai_addrlen);
 
 	freeaddrinfo(servinfo);
-    string listenData = listen_pkts(mysockfd);
-    cout << "Received "<< listenData <<" from server" << endl;
-    return listenData;
+    if (!updatePrice)
+    {
+        string listenData = listen_pkts(mysockfd);
+        cout << "Received "<< listenData <<" from server" << endl;
+        return listenData;
+    }
+    else
+    {
+        return "";
+    }
 }
 
 int sockNum(string message)
@@ -305,7 +313,7 @@ int sockNum(string message)
 int main(void)
 {
     int listener;     // Listening socket descriptor
-    tuple<string,string, bool> operation;
+    tuple<string, string, bool> operation;
     int newfd;        // Newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr; // Client address
     socklen_t addrlen;
@@ -372,6 +380,7 @@ int main(void)
                     }
                 } else {
                     // If not the listener, we're just a regular client
+                    memset(buf, 0, sizeof(buf));
                     int nbytes = recv(pfds[i].fd, buf, sizeof buf, 0);
 
                     int sender_fd = pfds[i].fd;
@@ -390,21 +399,23 @@ int main(void)
                         del_from_pfds(pfds, i, &fd_count);
 
                     } else {
+                        buf[nbytes] = '\0';
                         printf("Server received from socket %d: %.*s\n", pfds[i].fd, nbytes, buf);
-                        // We got some good data from a client
 
+
+                        // We got some good data from a client
                         string recMessage(buf);
                         recMessage += ";" + to_string(sender_fd);
                         operation = operationType(recMessage);
                         string newMessage = get<0>(operation);
                         string serverPort = get<1>(operation);
                         bool updatePrice = get<2>(operation);
-                        
-                        string responseMsg = udpSendMsg(serverPort, newMessage, udp_sockfd);
+                        cout << "Sending: " << newMessage << " to server " << serverPort << endl;
+                        string responseMsg = udpSendMsg(serverPort, newMessage, udp_sockfd, updatePrice);
                         if (updatePrice)
                         {
                             string upMsg = "update;" + newMessage;
-                            string updateMsg = udpSendMsg(QUOT_PORT, upMsg, udp_sockfd);
+                            string updateMsg = udpSendMsg(QUOT_PORT, upMsg, udp_sockfd, updatePrice);
                         }
                         int C_SOCK = sockNum(responseMsg);
 
