@@ -203,7 +203,38 @@ tuple<string, string, bool> operationType(string receivedMsg)
     }
     return make_tuple("ERROR","", false);
 }
-
+/*
+string udpForwarding(string receivedMsg)
+{
+    istringstream stream(receivedMsg);
+    string parsedMsg, MsgType, usersname, password, socketNum;
+    string newMsg = "";
+    cout << "operationType received message: " << receivedMsg << endl;
+    string choice;
+    int parseNum = 0;
+    while(getline(stream, parsedMsg, ';'))
+    {
+        parseNum++;
+        if(parseNum == 1)
+        {
+            MsgType = parsedMsg;
+        }
+        if(parseNum == 2)
+        {
+            usersname = parsedMsg;
+        }
+        if(parseNum == 3)
+        {
+            password = parsedMsg;
+        }
+        if(parseNum == 4)
+        {
+            socketNum = parsedMsg;
+        }
+    }
+    return "";
+}
+*/
 int startUDPServer()
 {
     int sockfd;
@@ -292,7 +323,8 @@ string udpSendMsg(string serverPort, string message, int mysockfd, bool updatePr
     if (!updatePrice)
     {
         string listenData = listen_pkts(mysockfd);
-        cout << "Received "<< listenData <<" from server" << endl;
+        cout << "Received "<< listenData <<" from server port " << serverPort << endl;
+
         return listenData;
     }
     else

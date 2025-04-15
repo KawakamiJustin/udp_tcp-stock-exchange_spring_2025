@@ -221,7 +221,7 @@ string process_data(char *buf, int numbytes, map<string, priceData> &quotes)
     if(MsgType == "update")
     {
         updatePrice(quotes, whichQuote);
-        return "";
+        return "DONE";
     }
     else if (MsgType == "quote")
     {
@@ -239,6 +239,7 @@ string listen_pkts(int sockfd, map<string, priceData> &quotes)
 	socklen_t addr_len;
 	char s[INET6_ADDRSTRLEN];
 	addr_len = sizeof their_addr;
+    memset(buf, 0, sizeof(buf)); // clear buffer
 	if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
 		(struct sockaddr *)&their_addr, &addr_len)) == -1) {
 		perror("recvfrom");
@@ -291,7 +292,10 @@ int main()
     {
         newMsg = listen_pkts(sockfd, quotes);
         cout << newMsg << endl;
-        udpSendMsg(newMsg, sockfd);
+        if(newMsg != "DONE")
+        {
+            udpSendMsg(newMsg, sockfd);
+        }
     }
     close(sockfd);
     return 0;

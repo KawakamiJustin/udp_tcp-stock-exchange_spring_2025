@@ -29,6 +29,7 @@
         "tuple": "cpp",
         "utility": "cpp",
         "vector": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "iomanip": "cpp"
     }
 }

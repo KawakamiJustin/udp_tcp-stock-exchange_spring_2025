@@ -15,6 +15,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <iomanip>
 
 #define MYPORT "42110"	// the port users will be connecting to
 #define PORTM "44110"
@@ -61,24 +62,24 @@ map<string, vector<stock>> onStartUp()
 				portfolio[userID] = stocks;
 			}
 			userID = info;
-			cout << "Parsing User: " << userID << endl;
+			//cout << "Parsing User: " << userID << endl;
 			stocks.clear();
 		}
 		else if (!info.empty() && spaceCount >= 2)
 		{
 			int space = info.find(' ');
         	stockInfo.stockName = info.substr(0, space);
-			cout << "Adding stock: " << stockInfo.stockName << " for user: " << userID << endl;
+			//cout << "Adding stock: " << stockInfo.stockName << " for user: " << userID << endl;
 
 			info = info.substr(space + 1);
 			space = info.find(' ');
 			stockInfo.quantity = stoi(info.substr(0, space));
-			cout << "Adding quantity: "<< stockInfo.quantity <<" for stock " << stockInfo.stockName << " for user: " << userID << endl;
+			//cout << "Adding quantity: "<< stockInfo.quantity <<" for stock " << stockInfo.stockName << " for user: " << userID << endl;
 
         	info = info.substr(space + 1);
 			//space = info.find(' ');
 			stockInfo.avgPrice = stod(info);
-			cout << "Adding avgprice: "<< stockInfo.avgPrice <<" for stock " << stockInfo.stockName << " for user: " << userID << endl;
+			//cout << "Adding avgprice: "<< stockInfo.avgPrice <<" for stock " << stockInfo.stockName << " for user: " << userID << endl;
 
 			stocks.push_back(stockInfo);
 		}
@@ -135,6 +136,35 @@ int startServer()
     return sockfd;
 }
 
+string getPortfolio(string user,map<string, vector<stock>> &portfolio)
+{
+	string totalPosition = "";
+	string stockName, quant;
+	double avgPrice;
+	vector<stock> assignedStocks;
+	if(portfolio.find(user) != portfolio.end())
+	{
+		assignedStocks.clear();
+		assignedStocks = portfolio[user];
+		for (const auto& stockInfo : assignedStocks)
+		{
+			stockName = stockInfo.stockName;
+			quant = to_string(stockInfo.quantity);
+			avgPrice = stockInfo.avgPrice;
+			//cout << avgPrice << endl;;
+			ostringstream stream;
+            stream << fixed << setprecision(2) << avgPrice;
+			//cout << stream.str();
+			totalPosition += stockName + ";" + quant + ";" + stream.str() + ";";
+			//cout << totalPosition << endl;
+		}
+	}
+	else
+	{
+		totalPosition = "NA;";
+	}
+	return totalPosition;
+}
 
 string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfolio)
 {
@@ -142,9 +172,13 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
     string rawData(buf);
     cout << "raw data: " << rawData << endl;
     istringstream stream(rawData);
-    string parsedMsg, MsgType, transactType, quantity, price,  socketNum;
+    string parsedMsg, MsgType, transactType, user, quantity, price,  socketNum, rawMsg;
     string newMsg = "";
     int parseNum = 0;
+	// transact;buy;<user>;S1;23;<price>;5
+	// transact;sell;<user>;S1;23;<price;5
+
+	// position;<user>;5
     while(getline(stream, parsedMsg, ';'))
     {
         parseNum++;
@@ -152,19 +186,28 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
         {
             MsgType = parsedMsg;
         }
-        if(parseNum == 2 && MsgType != "position")
+		else if(parseNum == 2 && MsgType == "position")
         {
-            whichQuote = parsedMsg;
+            user = parsedMsg;
         }
-        if(parseNum == 3)
+        else if(parseNum == 3  && MsgType == "position")
+        {
+            socketNum = parsedMsg;
+        }
+        else if(parseNum == 2 && MsgType != "position")
+        {
+            transactType = parsedMsg;
+        }
+        else if(parseNum == 3  && MsgType != "position")
         {
             socketNum = parsedMsg;
         }
     }
     if(MsgType == "position")
     {
-        //updatePrice(quotes, whichQuote);
-        return "";
+        rawMsg = getPortfolio(user, portfolio);
+		newMsg = MsgType + ";" + user + ";" + rawMsg + socketNum;
+        return newMsg;
     }
     else if (MsgType == "quote")
     {
@@ -182,6 +225,7 @@ string listen_pkts(int sockfd, map<string, vector<stock>> &portfolio)
 	socklen_t addr_len;
 	char s[INET6_ADDRSTRLEN];
 	addr_len = sizeof their_addr;
+	memset(buf, 0, sizeof(buf)); // clear buffer
 	if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
 		(struct sockaddr *)&their_addr, &addr_len)) == -1) {
 		perror("recvfrom");
@@ -193,31 +237,36 @@ string listen_pkts(int sockfd, map<string, vector<stock>> &portfolio)
 	printf("listener: packet is %d bytes long\n", numbytes);
 	buf[numbytes] = '\0';
 	printf("listener: packet contains \"%s\"\n", buf);
-    string status = process_data(buf, numbytes, portfolio);
-    return status;
+    string messageToSend = process_data(buf, numbytes, portfolio);
+    return messageToSend;
 }
 
+void udpSendMsg(string message, int mysockfd)
+{
+	struct addrinfo hints, *servinfo;
+
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET; // set to AF_INET to use IPv4
+	hints.ai_socktype = SOCK_DGRAM;
+
+	getaddrinfo("localhost", PORTM, &hints, &servinfo);
+
+    sendto(mysockfd, message.c_str(), message.length(), 0, servinfo->ai_addr, servinfo->ai_addrlen);
+
+	freeaddrinfo(servinfo);
+}
 
 int main(void)
 {
+	cout << "[Server P] Booting up using UDP on port 42110 " << endl;
 	int sockfd = startServer();
 	map<string, vector<stock>> portfolio = onStartUp();
-	listen_pkts(sockfd, portfolio);
-
-	/*for (const auto& pair : portfolio)
-	{
-		cout <<"User: " <<pair.first <<'\n';
-		for (const auto& s : pair.second)
-		{
-			cout << "Stock Name: " << s.stockName
-				<< " Stock Quantity: " << s.quantity
-				<< " Stock Price: " << s.avgPrice << '\n';
-		}
-		if (pair.second.empty())
-		{
-			cout << " No stocks assigned to this user. \n";
-		}
-	}*/
+	while(true)
+    {
+        string udpResponse = listen_pkts(sockfd, portfolio);
+        cout << udpResponse << endl;
+        udpSendMsg(udpResponse, sockfd);
+    }
 	close(sockfd);
 	return 0;
 }

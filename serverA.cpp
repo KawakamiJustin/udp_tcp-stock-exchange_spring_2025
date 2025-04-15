@@ -160,6 +160,7 @@ string listen_pkts(int sockfd, map<string, string> users)
 	socklen_t addr_len;
 	char s[INET6_ADDRSTRLEN];
 	addr_len = sizeof their_addr;
+    memset(buf, 0, sizeof(buf)); // clear buffer
 	if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
 		(struct sockaddr *)&their_addr, &addr_len)) == -1) {
 		perror("recvfrom");

@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# clear executables
+make clean
+
+# Build all executables
+make all
+
 # Paths to your C++ executables
 EXECUTABLES=("serverM" "serverA" "serverQ" "serverP" "client")
 

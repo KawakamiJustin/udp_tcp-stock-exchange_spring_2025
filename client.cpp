@@ -179,7 +179,6 @@ void parseAllQuotes(int sockfd)
             cout << endl;
         }
     }
-    
 }
 
 void parseQuote(int sockfd)
@@ -219,6 +218,42 @@ void parseQuote(int sockfd)
     
 }
 
+void parsePortfolio(int sockfd)
+{
+    string receivedMsg = recvString(sockfd);
+    istringstream stream(receivedMsg);
+    string parsedMsg, msgType, startFlag;
+    string newMsg = "";
+    int parseNum = 0;
+    int localPort = getLocalPort(sockfd);
+    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    while(getline(stream, parsedMsg, ';'))
+    {
+        parseNum++;
+        if(parseNum == 1)
+        {
+            msgType = parsedMsg;
+        }
+        else if(parseNum == 2)
+        {
+            startFlag = parsedMsg;
+        }
+        else if (parsedMsg == "end")
+        {
+            break;
+        }
+        else if (parseNum % 2 == 1)
+        {
+            cout << parsedMsg << "\t";
+        }
+        else
+        {
+            cout << parsedMsg << endl;
+            cout << endl;
+        }
+    }
+}
+
 void quote(int sockfd)
 {
     string command = string("quote;all");
@@ -245,6 +280,7 @@ void getPortfolio(int sockfd, string user)
 {
     string command = string("position;") + user;
     send(sockfd ,command.c_str(), command.size(), 0);
+    parsePortfolio(sockfd);
 }
 
 int main()
