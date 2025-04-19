@@ -218,6 +218,54 @@ void parseQuote(int sockfd)
     
 }
 
+string parseTransact(int sockfd)
+{
+    string receivedMsg = recvString(sockfd);
+    istringstream stream(receivedMsg);
+    string parsedMsg, msgType, stockName, stockPrice;
+    string newMsg = "";
+    int parseNum = 0;
+    string response;
+    while(getline(stream, parsedMsg, ';'))
+    {
+        parseNum++;
+        if(parseNum == 1)
+        {
+            msgType = parsedMsg;
+        }
+        if(parseNum == 2)
+        {
+            stockName = parsedMsg;
+        }
+        if(parseNum == 3)
+        {
+            stockPrice = parsedMsg;
+        }
+    }
+    int localPort = getLocalPort(sockfd);
+    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    if(stockPrice == "NA")
+    {
+        cout << stockName << " does not exist. Please try again."<< endl;
+        response = "N";
+    }
+    else
+    {
+        cout << "[Client] " << stockName << "'s current price is " << stockPrice << ". Proceed to buy? (Y/N)" << endl;
+        cin.clear();
+        getline(cin, response);
+        if(response != "Y" && response != "N")
+        {
+            cout << "[Client] You have entered an invalid character." << endl;
+            cout << "[Client] " << stockName << "'s current price is " << stockPrice << ". Proceed to buy? (Y/N)" << endl;
+            cin.clear();
+            getline(cin, response);
+        }
+    }
+    return response;
+    
+}
+
 void parsePortfolio(int sockfd)
 {
     string receivedMsg = recvString(sockfd);
@@ -274,6 +322,17 @@ void transact(int sockfd, string operation, string stock, string quantity, strin
 {
     string command = string("transact;") + operation + ";" + user + ";" + stock + ";" + quantity;
     send(sockfd ,command.c_str(), command.size(), 0);
+    string response = parseTransact(sockfd);
+    if (response == "Y")
+    {
+        command = response + string(";") + user + ";" + quantity;
+    }
+    else
+    {
+        command = response + string(";") + user + ";" + quantity;
+    }
+    send(sockfd ,command.c_str(), command.size(), 0);
+    
 }
 
 void getPortfolio(int sockfd, string user)
@@ -364,9 +423,13 @@ int main()
             {
                 transact(M_SOCK, selectedOptions[0], selectedOptions[1], selectedOptions[2], user);
             }
+            else if (selectedOptions[0] == "buy" && selectedOptions.size() < 3)
+            {
+                cout << "[Client] Error: stock name/shares are required. Please specify a stock name to buy." << endl;
+            }
             else
             {
-                cout << "Invalid use of buy or sell" << endl;
+                cout << "[Client] Error: stock name/shares are required. Please specify a stock name to sell." << endl;
             }
         }
         else if (selectedOptions[0] == "position" && selectedOptions.size() == 1)

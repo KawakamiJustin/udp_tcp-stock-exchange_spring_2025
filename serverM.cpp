@@ -174,35 +174,7 @@ void updateQuote(string message)
 
 }
 
-tuple<string, string, bool> operationType(string receivedMsg)
-{
-    string msg = "";
-    istringstream stream(receivedMsg);
-    cout << "operationType received message: " << receivedMsg << endl;
-    string choice;
-    getline(stream, choice, ';');
-    if(choice == "credentials")
-    {
-        msg = passwordEncrypt(receivedMsg);
-        return make_tuple(msg, AUTH_PORT, false);
-    }
-    if(choice == "position")
-    {
-        msg = receivedMsg;
-        return make_tuple(msg, PORT_PORT, false);
-    }
-    if(choice == "transact")
-    {
-        msg = receivedMsg;
-        return make_tuple(msg, PORT_PORT, true);
-    }
-    if(choice == "quote")
-    {
-        msg = receivedMsg;
-        return make_tuple(msg, QUOT_PORT, false);
-    }
-    return make_tuple("ERROR","", false);
-}
+
 /*
 string udpForwarding(string receivedMsg)
 {
@@ -276,15 +248,7 @@ int startUDPServer()
     return sockfd;
 }
 
-string process_data(char *buf, int numbytes)
-{
-    buf[numbytes] = '\0';
-    string rawData(buf);
-    cout << "raw data: " << rawData << endl;
-    return rawData;
-}
-
-string listen_pkts(int sockfd)
+string UDPrecv(int sockfd)
 {
     int numbytes;
 	struct sockaddr_storage their_addr;
@@ -303,8 +267,24 @@ string listen_pkts(int sockfd)
 	printf("listener: packet is %d bytes long\n", numbytes);
 	buf[numbytes] = '\0';
 	printf("listener: packet contains \"%s\"\n", buf);
-    string data = process_data(buf, numbytes);
-    return data;
+    buf[numbytes] = '\0';
+    string rawData(buf);
+    return rawData;
+}
+
+void UDPsend(string serverPort, string message, int mysockfd)
+{
+	struct addrinfo hints, *servinfo;
+
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET; // set to AF_INET to use IPv4
+	hints.ai_socktype = SOCK_DGRAM;
+
+	getaddrinfo("localhost", serverPort.c_str(), &hints, &servinfo);
+
+    sendto(mysockfd, message.c_str(), message.length(), 0, servinfo->ai_addr, servinfo->ai_addrlen);
+
+	freeaddrinfo(servinfo);
 }
 
 string udpSendMsg(string serverPort, string message, int mysockfd, bool updatePrice)
@@ -322,7 +302,7 @@ string udpSendMsg(string serverPort, string message, int mysockfd, bool updatePr
 	freeaddrinfo(servinfo);
     if (!updatePrice)
     {
-        string listenData = listen_pkts(mysockfd);
+        string listenData = UDPrecv(mysockfd);
         cout << "Received "<< listenData <<" from server port " << serverPort << endl;
 
         return listenData;
@@ -339,13 +319,130 @@ int sockNum(string message)
     string socketString = message.substr(socketpos);
     return stoi(socketString);
 }
+/*
+tuple<string, string, bool> operationType(string receivedMsg)
+{
+    string msg = "";
+    istringstream stream(receivedMsg);
+    cout << "operationType received message: " << receivedMsg << endl;
+    string choice;
+    getline(stream, choice, ';');
+    if(choice == "credentials")
+    {
+        msg = passwordEncrypt(receivedMsg);
+        return make_tuple(msg, AUTH_PORT, false);
+    }
+    if(choice == "position")
+    {
+        msg = receivedMsg;
+        return make_tuple(msg, PORT_PORT, false);
+    }
+    if(choice == "transact")
+    {
+        msg = receivedMsg;
+        return make_tuple(msg, PORT_PORT, true);
+    }
+    if(choice == "quote")
+    {
+        msg = receivedMsg;
+        return make_tuple(msg, QUOT_PORT, false);
+    }
+    return make_tuple("ERROR","", false);
+}*/
+string TCPrecv(int client__sockfd)
+{
+    char buf[MAXBUFLEN];
+    memset(buf, 0, sizeof(buf)); // clear buffer
+    int nbytes = recv(client__sockfd, buf, sizeof buf, 0);
+    buf[nbytes] = '\0';
+    string rawData(buf);
+    return rawData;
+}
 
+
+void operationType(string receivedMsg, int sockfd, int client__sockfd)
+{
+    string msg;
+    istringstream stream(receivedMsg);
+    cout << "operationType received message: " << receivedMsg << endl;
+    string choice, subOp, userID, stockName, shares, price, clientSock, confirmation;
+    getline(stream, choice, ';');
+    if(choice == "credentials")
+    {
+        msg = passwordEncrypt(receivedMsg);
+        UDPsend(AUTH_PORT, msg, sockfd);
+        msg = UDPrecv(sockfd);
+        send(client__sockfd, msg.c_str(), msg.size(), 0);
+    }
+    if(choice == "position")
+    {
+        msg = receivedMsg;
+
+    }
+    if(choice == "transact")
+    {
+        getline(stream, subOp, ';');
+        getline(stream, userID, ';');
+        getline(stream, stockName, ';');
+        getline(stream, shares, ';');
+        getline(stream, clientSock, ';');
+        msg = string("quote;") + stockName + string(";") + clientSock;
+        UDPsend(QUOT_PORT, msg, sockfd);
+        string quoteMsg = UDPrecv(sockfd);
+        
+        if(subOp == "buy")
+        {
+            send(client__sockfd, quoteMsg.c_str(), quoteMsg.size(), 0);
+            msg = TCPrecv(client__sockfd);
+            istringstream stream(msg);
+            getline(stream, confirmation, ';');
+            if (confirmation == "N")
+            {
+                return;
+            }
+            else 
+            {
+                
+            }
+        }
+        else if (subOp == "sell")
+        {
+            string posMsg = string("retrieve;") + userID + string(";") + stockName + string(";") + clientSock;
+            UDPsend(PORT_PORT, posMsg, sockfd);
+            string sellPos = UDPrecv(sockfd);
+            istringstream userPos(sellPos);
+            string operation, avgPrice;
+            getline(userPos, operation, ';');
+            getline(userPos, userID, ';');
+            getline(userPos, stockName, ';');
+            if(stockName == "NA")
+            {
+                
+            }
+            else
+            {
+                getline(userPos, shares, ';');
+                getline(userPos, avgPrice, ';');
+            }
+            
+        }
+        
+    }
+    if(choice == "quote")
+    {
+        msg = receivedMsg;
+        UDPsend(QUOT_PORT, msg, sockfd);
+        msg = UDPrecv(sockfd);
+        send(client__sockfd, msg.c_str(), msg.size(), 0);
+    }
+    //return msg;
+}
 
 // Main
 int main(void)
 {
     int listener;     // Listening socket descriptor
-    tuple<string, string, bool> operation;
+    // tuple<string, string, bool> operation;
     int newfd;        // Newly accept()ed socket descriptor
     struct sockaddr_storage remoteaddr; // Client address
     socklen_t addrlen;
@@ -432,14 +529,14 @@ int main(void)
 
                     } else {
                         buf[nbytes] = '\0';
-                        printf("Server received from socket %d: %.*s\n", pfds[i].fd, nbytes, buf);
+                        // printf("Server received from socket %d: %.*s\n", pfds[i].fd, nbytes, buf);
 
 
                         // We got some good data from a client
                         string recMessage(buf);
                         recMessage += ";" + to_string(sender_fd);
-                        operation = operationType(recMessage);
-                        string newMessage = get<0>(operation);
+                        // operation = operationType(recMessage);
+                        /*string newMessage = get<0>(operation);
                         string serverPort = get<1>(operation);
                         bool updatePrice = get<2>(operation);
                         cout << "Sending: " << newMessage << " to server " << serverPort << endl;
@@ -448,10 +545,11 @@ int main(void)
                         {
                             string upMsg = "update;" + newMessage;
                             string updateMsg = udpSendMsg(QUOT_PORT, upMsg, udp_sockfd, updatePrice);
-                        }
-                        int C_SOCK = sockNum(responseMsg);
+                        }*/
+                        operationType(recMessage, udp_sockfd, sender_fd); // new version
 
                         // Except the listener
+                        /*
                         if (C_SOCK != listener) {
                             if (send(C_SOCK, responseMsg.c_str(), responseMsg.size(), 0) == -1) {
                                 perror("send");
@@ -461,7 +559,7 @@ int main(void)
                                 // Log what was sent
                                 printf("Server sent to socket %d: %.*s\n", C_SOCK, int(responseMsg.size()), responseMsg.c_str());
                             }
-                        }
+                        }*/
                         
                     }
                 } // END handle data from client

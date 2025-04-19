@@ -175,9 +175,9 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
     string parsedMsg, MsgType, transactType, user, quantity, price,  socketNum, rawMsg;
     string newMsg = "";
     int parseNum = 0;
-	// transact;buy;<user>;S1;23;<price>;5
-	// transact;sell;<user>;S1;23;<price;5
-
+	// buy;<user>;S1;23;5
+	// sell;<user>;S1;23;5
+	// retrieve;<user>;S1;5
 	// position;<user>;5
     while(getline(stream, parsedMsg, ';'))
     {
@@ -186,19 +186,19 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
         {
             MsgType = parsedMsg;
         }
-		else if(parseNum == 2 && MsgType == "position")
+		else if(parseNum == 2)
         {
             user = parsedMsg;
         }
-        else if(parseNum == 3  && MsgType == "position")
+        else if(parseNum == 3)
         {
             socketNum = parsedMsg;
         }
-        else if(parseNum == 2 && MsgType != "position")
+        else if(parseNum == 2)
         {
             transactType = parsedMsg;
         }
-        else if(parseNum == 3  && MsgType != "position")
+        else if(parseNum == 3)
         {
             socketNum = parsedMsg;
         }
