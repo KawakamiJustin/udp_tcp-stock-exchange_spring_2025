@@ -166,19 +166,69 @@ string getPortfolio(string user,map<string, vector<stock>> &portfolio)
 	return totalPosition;
 }
 
+string getStock(string user, string targetStock, string socketNum, map<string, vector<stock>> &portfolio)
+{
+	string stockPosition = "";
+	string quant, price;
+	vector<stock> assignedStocks;
+	if(portfolio.find(user) != portfolio.end())
+	{
+		vector<stock> stocks = portfolio[user];
+		for (int index = 0; index < stocks.size(); index++)
+		{
+			if(stocks[index].stockName == targetStock)
+			{
+				quant = to_string(stocks[index].quantity);
+				price = stocks[index].avgPrice;
+				ostringstream stream;
+            	stream << fixed << setprecision(2) << price;
+				stockPosition = user + ";" + targetStock + ";" + quant + ";" + stream.str() +";" + to_string(index) + ";" + socketNum;
+				return stockPosition;
+			}
+		}
+		if(stockPosition == "")
+		{
+			stockPosition = user + ";" + targetStock + "NA;NA;-1;" + socketNum; // User does not own stock currently
+		}
+	}
+	else
+	{
+		stockPosition = user + ";NA;NA;NA;-1;" + socketNum; // User Not Found
+	}
+	return stockPosition; // user;stock;quantity;price;indexInVector;socketNum
+}
+
+void updateStock(string user, string targetStock, int quantity, int indexNum, double price, map<string, vector<stock>> &portfolio)
+{
+	if (indexNum == -1)
+	{
+		stock newStock;
+		newStock.stockName = targetStock;
+		newStock.quantity = quantity;
+		newStock.avgPrice = price;
+		portfolio[user].push_back(newStock);
+	}
+	else
+	{
+		portfolio[user][indexNum].quantity = quantity;
+		portfolio[user][indexNum].avgPrice = price;
+	}
+}
+
 string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfolio)
 {
     buf[numbytes] = '\0';
     string rawData(buf);
     cout << "raw data: " << rawData << endl;
     istringstream stream(rawData);
-    string parsedMsg, MsgType, transactType, user, quantity, price,  socketNum, rawMsg;
+    string parsedMsg, MsgType, user, stockName, socketNum, rawMsg;
+	int quantity, indexNum;
+	double price;
     string newMsg = "";
     int parseNum = 0;
-	// buy;<user>;S1;23;5
-	// sell;<user>;S1;23;5
-	// retrieve;<user>;S1;5
-	// position;<user>;5
+	// retrieve;<user>;<stock_name>;<socket_Num>
+	// position;<user>;<socket_Num>
+	// update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
     while(getline(stream, parsedMsg, ';'))
     {
         parseNum++;
@@ -190,17 +240,36 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
         {
             user = parsedMsg;
         }
-        else if(parseNum == 3)
+        else if(parseNum == 3 && MsgType != "position")
+        {
+            stockName = parsedMsg;
+        }
+        else if(parseNum == 3 && MsgType == "position")
         {
             socketNum = parsedMsg;
         }
-        else if(parseNum == 2)
-        {
-            transactType = parsedMsg;
-        }
-        else if(parseNum == 3)
+        else if(parseNum == 4 && MsgType == "retrieve")
         {
             socketNum = parsedMsg;
+        }
+		else if(MsgType == "update" && parseNum >= 4)
+        {
+			if(parseNum == 4)
+			{
+				quantity = stoi(parsedMsg);
+			}
+			else if(parseNum == 5)
+			{
+				price = stod(parsedMsg);
+			}
+			else if(parseNum == 6)
+			{
+				indexNum = stoi(parsedMsg);
+			}
+			else if(parseNum == 7)
+			{
+				socketNum = parsedMsg;
+			}
         }
     }
     if(MsgType == "position")
@@ -209,12 +278,16 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
 		newMsg = MsgType + ";" + user + ";" + rawMsg + socketNum;
         return newMsg;
     }
-    else if (MsgType == "quote")
+    else if (MsgType == "retrieve")
     {
-        //string msg = getQuote(quotes, whichQuote);
-        newMsg = MsgType + ";"  + ";" + socketNum;
+        newMsg = getStock(user, stockName, socketNum, portfolio);
         return newMsg;
     }
+	else if(MsgType == "update")
+	{
+		updateStock(user, stockName, quantity, indexNum, price, portfolio);
+		return "update";
+	}
 }
 
 string listen_pkts(int sockfd, map<string, vector<stock>> &portfolio)
@@ -264,8 +337,10 @@ int main(void)
 	while(true)
     {
         string udpResponse = listen_pkts(sockfd, portfolio);
-        cout << udpResponse << endl;
-        udpSendMsg(udpResponse, sockfd);
+		if(udpResponse != "update")
+		{
+			udpSendMsg(udpResponse, sockfd);
+		}
     }
 	close(sockfd);
 	return 0;

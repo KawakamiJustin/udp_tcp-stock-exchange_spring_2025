@@ -359,6 +359,19 @@ string TCPrecv(int client__sockfd)
     return rawData;
 }
 
+double avgBuyPrice(int quantity, double price)
+{
+    double avgPrice = (quantity * price)/quantity;
+    return avgPrice;
+}
+
+double avgBuyPriceNew(int quantity, double price, double avgPriceOld, double quantityOld)
+{
+    double oldCost = quantityOld * avgBuyPrice(quantityOld, avgPriceOld);
+    double newCost = quantity * avgBuyPrice(quantity, price);
+    double avgPrice = (oldCost + newCost)/(quantity + quantityOld);
+    return avgPrice;
+}
 
 void operationType(string receivedMsg, int sockfd, int client__sockfd)
 {
