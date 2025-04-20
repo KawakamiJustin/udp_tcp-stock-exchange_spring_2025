@@ -255,6 +255,8 @@ string UDPrecv(int sockfd)
 	char buf[MAXBUFLEN];
 	socklen_t addr_len;
 	char s[INET6_ADDRSTRLEN];
+
+    memset(buf, 0, MAXBUFLEN);
 	addr_len = sizeof their_addr;
 	if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
 		(struct sockaddr *)&their_addr, &addr_len)) == -1) {
@@ -365,7 +367,7 @@ double avgBuyPrice(int quantity, double price)
     return avgPrice;
 }
 
-double avgBuyPriceNew(int quantity, double price, double avgPriceOld, double quantityOld)
+double avgBuyPriceNew(int quantity, double price, int quantityOld, double avgPriceOld)
 {
     double oldCost = quantityOld * avgBuyPrice(quantityOld, avgPriceOld);
     double newCost = quantity * avgBuyPrice(quantity, price);
@@ -407,23 +409,30 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
         getline(stream, stockName, ';');
         getline(stream, shares, ';');
         getline(stream, clientSock, ';');
-        msg = string("quote;") + stockName + string(";") + clientSock;
-        UDPsend(QUOT_PORT, msg, sockfd);
+        string Quote_msg = string("quote;") + stockName + string(";") + clientSock;
+        UDPsend(QUOT_PORT, Quote_msg, sockfd);
         string quoteMsg = UDPrecv(sockfd);
         // retrieve;<user>;<stock_name>;<socket_Num>
 	    // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
         if(subOp == "buy")
         {
             send(client__sockfd, quoteMsg.c_str(), quoteMsg.size(), 0);
-            msg = TCPrecv(client__sockfd);
-            istringstream stream(msg);
-            getline(stream, confirmation, ';');
+            string conMsg = TCPrecv(client__sockfd);
+            cout << "ServerM from Client Confirmation Message: " << conMsg << endl;
+            istringstream conStream(conMsg);
+            getline(conStream, confirmation, ';');
             if (confirmation == "N")
             {
                 return;
             }
             else 
             {
+                string quote_MsgType, quote_stockName, quote_price, quote_clientSock;
+                // quote;S1;697.46;5
+                getline(stream, quote_MsgType, ';');
+                getline(stream, quote_stockName, ';');
+                getline(stream, quote_price, ';');
+                getline(stream, quote_clientSock, ';');
                 string requestMsg = "retrieve;" + userID + ";" + stockName + ";" + clientSock;
                 UDPsend(PORT_PORT, requestMsg, sockfd);
                 string clientPos = UDPrecv(sockfd); 
@@ -432,6 +441,39 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
                 // user;NA;NA;NA;-1;socketNum;                          User Not Found
                 cout << "received from portfolio: " << clientPos << endl;
                 // parse message to extract information about the user's position
+                string position_userID, position_stockName, position_shares, position_index, position_price, position_clientSock;
+                istringstream clientInfo(clientPos);
+                getline(clientInfo, position_userID, ';');
+                cout << "user ID from serverP: " << position_userID << endl;
+                getline(clientInfo, position_stockName, ';');
+                cout << "stock from serverP: " << position_stockName << endl;
+                getline(clientInfo, position_shares, ';');
+                cout << "shares ID from serverP: " << position_shares << endl;
+                getline(clientInfo, position_price, ';');
+                cout << "price from serverP: " << position_price << endl;
+                getline(clientInfo, position_index, ';');
+                cout << "index from serverP: " << position_index << endl;
+                getline(clientInfo, position_clientSock, ';');
+                cout << "socket from serverP: " << position_clientSock << endl;
+                if(position_shares == "NA" && position_stockName == stockName)
+                {
+                    double avgBuy = avgBuyPrice(stoi(shares),stod(quote_price));
+                    // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
+                    string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + shares + ";" + to_string(avgBuy) + ";" + position_index + ";" + position_clientSock;
+                    UDPsend(PORT_PORT, updatePos, sockfd);
+                    UDPsend(QUOT_PORT, updatePos, sockfd);
+                }
+                else if(position_shares != "NA" && position_stockName == stockName)
+                {
+                    double avgBuy = avgBuyPriceNew(stoi(shares), stod(quote_price), stoi(position_shares), stod(position_price)) ;
+                    int newShares = stoi(shares) + stoi(position_shares);
+                    // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
+                    string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + to_string(newShares) + ";" + to_string(avgBuy) + ";" + position_index + ";" + position_clientSock;
+                    UDPsend(PORT_PORT, updatePos, sockfd);
+                    UDPsend(QUOT_PORT, updatePos, sockfd);
+                }
+
+                // UDPsend(QUOT_PORT,)
             }
         }
         else if (subOp == "sell")

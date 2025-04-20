@@ -169,7 +169,8 @@ string getPortfolio(string user,map<string, vector<stock>> &portfolio)
 string getStock(string user, string targetStock, string socketNum, map<string, vector<stock>> &portfolio)
 {
 	string stockPosition = "";
-	string quant, price;
+	string quant;
+	double price;
 	vector<stock> assignedStocks;
 	if(portfolio.find(user) != portfolio.end())
 	{
@@ -182,6 +183,7 @@ string getStock(string user, string targetStock, string socketNum, map<string, v
 				price = stocks[index].avgPrice;
 				ostringstream stream;
             	stream << fixed << setprecision(2) << price;
+				cout << "Price: " << to_string(price) <<"\nStream Price: " << stream.str() << endl;
 				stockPosition = user + ";" + targetStock + ";" + quant + ";" + stream.str() +";" + to_string(index) + ";" + socketNum;
 				return stockPosition;
 			}
@@ -339,6 +341,7 @@ int main(void)
         string udpResponse = listen_pkts(sockfd, portfolio);
 		if(udpResponse != "update")
 		{
+			cout << "Sending Msg: " << udpResponse << endl;
 			udpSendMsg(udpResponse, sockfd);
 		}
     }

@@ -213,14 +213,11 @@ string process_data(char *buf, int numbytes, map<string, priceData> &quotes)
         {
             whichQuote = parsedMsg;
         }
-        if (parseNum == 4 && MsgType == "update")
-        {
-            socketNum = parsedMsg;
-        }
     }
     if(MsgType == "update")
     {
         updatePrice(quotes, whichQuote);
+        cout << "Updated Quote: " << whichQuote << endl;
         return "DONE";
     }
     else if (MsgType == "quote")
