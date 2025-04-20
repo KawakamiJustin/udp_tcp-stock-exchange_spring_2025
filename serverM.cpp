@@ -389,8 +389,16 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
     }
     if(choice == "position")
     {
+        // position;<user>;<socket_Num>
         msg = receivedMsg;
-
+        UDPsend(QUOT_PORT, msg, sockfd);
+        msg = UDPrecv(sockfd);
+        // Parse all stocks/quantities/prices
+        // Request stocks for current prices
+        // Parse stocks/current prices
+        // Perform profit calcs
+        // make new message to send to client
+        // send to client
     }
     if(choice == "transact")
     {
@@ -402,7 +410,8 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
         msg = string("quote;") + stockName + string(";") + clientSock;
         UDPsend(QUOT_PORT, msg, sockfd);
         string quoteMsg = UDPrecv(sockfd);
-        
+        // retrieve;<user>;<stock_name>;<socket_Num>
+	    // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
         if(subOp == "buy")
         {
             send(client__sockfd, quoteMsg.c_str(), quoteMsg.size(), 0);
@@ -415,14 +424,24 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
             }
             else 
             {
-                
+                string requestMsg = "retrieve;" + userID + ";" + stockName + ";" + clientSock;
+                UDPsend(PORT_PORT, requestMsg, sockfd);
+                string clientPos = UDPrecv(sockfd); 
+                // user;stock;quantity;price;indexInVector;socketNum    Valid
+                // user;targetStock;NA;NA;-1;socketNum                  User does not own stock currently
+                // user;NA;NA;NA;-1;socketNum;                          User Not Found
+                cout << "received from portfolio: " << clientPos << endl;
+                // parse message to extract information about the user's position
             }
         }
         else if (subOp == "sell")
         {
-            string posMsg = string("retrieve;") + userID + string(";") + stockName + string(";") + clientSock;
+            string posMsg = "retrieve;" + userID + ";" + stockName + ";" + clientSock;
             UDPsend(PORT_PORT, posMsg, sockfd);
             string sellPos = UDPrecv(sockfd);
+            // user;stock;quantity;price;indexInVector;socketNum    Valid
+            // user;targetStock;NA;NA;-1;socketNum                  User does not own stock currently
+            // user;NA;NA;NA;-1;socketNum;                          User Not Found
             istringstream userPos(sellPos);
             string operation, avgPrice;
             getline(userPos, operation, ';');
