@@ -82,15 +82,12 @@ int getLocalPort(int TCP_Connect_sock)
 
 string recvString(int M_SOCK)
 {
-    cout << "recvString Start" << endl;
     char buf[MAXBUFLEN];
     memset(buf, 0, sizeof(buf)); // clear buffer
     int nbytes = recv(M_SOCK, buf, sizeof(buf) - 1, 0);
     if(nbytes > 0)
     {
         buf[nbytes] = '\0';
-        cout << "recvString" << endl;
-        cout << "received: "<< buf << endl;
         string recMessage(buf);
         return recMessage;
     }
@@ -125,7 +122,7 @@ string login(int sockfd)
         cin >> password;
     }
     string user_id = string("credentials;") + username +";"+ password;
-    send(sockfd ,user_id.c_str(), user_id.size(), 0);
+    send(sockfd, user_id.c_str(), user_id.size(), 0);
     return username;
 }
 
@@ -153,7 +150,6 @@ string parseAUTH(string receivedMsg)
 
 void parseAllQuotes(int sockfd)
 {
-    cout << "parseAllQuote" << endl;
     string receivedMsg = recvString(sockfd);
     istringstream stream(receivedMsg);
     string parsedMsg, msgType, startFlag;
@@ -190,7 +186,6 @@ void parseAllQuotes(int sockfd)
 
 void parseQuote(int sockfd)
 {
-    cout << "parseQuote" << endl;
     string receivedMsg = recvString(sockfd);
     istringstream stream(receivedMsg);
     string parsedMsg, msgType, stockName, stockPrice;
@@ -228,8 +223,6 @@ void parseQuote(int sockfd)
 
 string parseTransact(int sockfd, string operation)
 {
-    //string newMsg = "";
-    cout << "parseTransact" << endl;
     string receivedMsg = recvString(sockfd);
     cout << "Received Quote from serverM: " << receivedMsg << endl;
     istringstream stream(receivedMsg);
@@ -254,10 +247,10 @@ string parseTransact(int sockfd, string operation)
         }
     }
     int localPort = getLocalPort(sockfd);
-    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    //cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
     if(stockPrice == "NA")
     {
-        cout << stockName << " does not exist. Please try again."<< endl;
+        cout << "[Client] Error: stock names does not exist. Please check again."<< endl;
         response = "N";
     }
     else
@@ -279,14 +272,14 @@ string parseTransact(int sockfd, string operation)
 
 void parsePortfolio(int sockfd)
 {
-    cout << "parsePortfolio" << endl;
     string receivedMsg = recvString(sockfd);
     istringstream stream(receivedMsg);
-    string parsedMsg, msgType, startFlag;
+    string parsedMsg, msgType, user, stockName, price, quantity, profit;
     string newMsg = "";
     int parseNum = 0;
     int localPort = getLocalPort(sockfd);
     cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    // position;James;S1;400;353.47;S2;178;500.00;end;5;131296.58
     while(getline(stream, parsedMsg, ';'))
     {
         parseNum++;
@@ -296,20 +289,38 @@ void parsePortfolio(int sockfd)
         }
         else if(parseNum == 2)
         {
-            startFlag = parsedMsg;
+            user = parsedMsg;
+        }
+        else if(parseNum == 3 && parsedMsg == "NA")
+        {
+            cout << user << "does not own any stock." << endl;
+            break;
+        }
+        else if(parseNum == 3 && parsedMsg != "NA")
+        {
+            cout << "stock\tshares\tavg_buy_price" << endl;
+            stockName = parsedMsg;
         }
         else if (parsedMsg == "end")
         {
+            getline(stream, parsedMsg, ';');
+            getline(stream, parsedMsg, ';');
+            profit = parsedMsg;
+            cout << user <<"'s current profit is " << profit << "\n" << endl;
             break;
         }
-        else if (parseNum % 2 == 1)
+        else if (parseNum % 3 == 0)
         {
-            cout << parsedMsg << "\t";
+            stockName = parsedMsg;
         }
-        else
+        else if (parseNum % 3 == 1)
         {
-            cout << parsedMsg << endl;
-            cout << endl;
+            quantity = parsedMsg;
+        }
+        else if (parseNum % 3 == 2)
+        {
+            price = parsedMsg;
+            cout << stockName << "\t" << quantity << "\t" << price << endl;
         }
     }
 }
@@ -336,17 +347,17 @@ void transact(int sockfd, string operation, string stock, string quantity, strin
     send(sockfd ,command.c_str(), command.size(), 0);
     if(operation == "sell")
     {
-        cout << "sellValid" << endl;
         string sellValid = recvString(sockfd);
         if(sellValid == "FAIL")
         {
             cout << "[Client] Error: " << user << " does not have enough shares of " << stock <<".\n ---Start a new request---\n" << endl;
             return;
         }
-        /*else if (sellValid == "PASS")
+        else if (sellValid == "stock_FAIL")
         {
-            cout << "" << endl;
-        }*/
+            cout << "[Client] Error: stock names does not exist. Please check again."<< endl;
+            return;
+        }
     }
     //cout << "After sell: " <<endl;
     string response = parseTransact(sockfd, operation);

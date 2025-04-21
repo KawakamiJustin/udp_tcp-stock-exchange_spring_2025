@@ -190,7 +190,7 @@ string getStock(string user, string targetStock, string socketNum, map<string, v
 		}
 		if(stockPosition == "")
 		{
-			stockPosition = user + ";" + targetStock + "NA;NA;-1;" + socketNum; // User does not own stock currently
+			stockPosition = user + ";" + targetStock + ";NA;NA;-1;" + socketNum; // User does not own stock currently
 		}
 	}
 	else
@@ -277,7 +277,7 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
     if(MsgType == "position")
     {
         rawMsg = getPortfolio(user, portfolio);
-		newMsg = MsgType + ";" + user + ";" + rawMsg + socketNum;
+		newMsg = MsgType + ";" + user + ";" + rawMsg + "end;" + socketNum;
         return newMsg;
     }
     else if (MsgType == "retrieve")
