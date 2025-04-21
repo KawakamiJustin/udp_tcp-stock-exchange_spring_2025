@@ -169,44 +169,6 @@ string passwordEncrypt(string receivedMsg)
     return newMsg;
 }
 
-void updateQuote(string message)
-{
-
-}
-
-
-/*
-string udpForwarding(string receivedMsg)
-{
-    istringstream stream(receivedMsg);
-    string parsedMsg, MsgType, usersname, password, socketNum;
-    string newMsg = "";
-    cout << "operationType received message: " << receivedMsg << endl;
-    string choice;
-    int parseNum = 0;
-    while(getline(stream, parsedMsg, ';'))
-    {
-        parseNum++;
-        if(parseNum == 1)
-        {
-            MsgType = parsedMsg;
-        }
-        if(parseNum == 2)
-        {
-            usersname = parsedMsg;
-        }
-        if(parseNum == 3)
-        {
-            password = parsedMsg;
-        }
-        if(parseNum == 4)
-        {
-            socketNum = parsedMsg;
-        }
-    }
-    return "";
-}
-*/
 int startUDPServer()
 {
     int sockfd;
@@ -321,36 +283,7 @@ int sockNum(string message)
     string socketString = message.substr(socketpos);
     return stoi(socketString);
 }
-/*
-tuple<string, string, bool> operationType(string receivedMsg)
-{
-    string msg = "";
-    istringstream stream(receivedMsg);
-    cout << "operationType received message: " << receivedMsg << endl;
-    string choice;
-    getline(stream, choice, ';');
-    if(choice == "credentials")
-    {
-        msg = passwordEncrypt(receivedMsg);
-        return make_tuple(msg, AUTH_PORT, false);
-    }
-    if(choice == "position")
-    {
-        msg = receivedMsg;
-        return make_tuple(msg, PORT_PORT, false);
-    }
-    if(choice == "transact")
-    {
-        msg = receivedMsg;
-        return make_tuple(msg, PORT_PORT, true);
-    }
-    if(choice == "quote")
-    {
-        msg = receivedMsg;
-        return make_tuple(msg, QUOT_PORT, false);
-    }
-    return make_tuple("ERROR","", false);
-}*/
+
 string TCPrecv(int client__sockfd)
 {
     char buf[MAXBUFLEN];
@@ -375,7 +308,7 @@ double avgBuyPriceNew(int quantity, double price, int quantityOld, double avgPri
     return avgPrice;
 }
 
-void operationType(string receivedMsg, int sockfd, int client__sockfd)
+void operationType(string receivedMsg, int sockfd, int client_sockfd)
 {
     string msg;
     istringstream stream(receivedMsg);
@@ -387,7 +320,7 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
         msg = passwordEncrypt(receivedMsg);
         UDPsend(AUTH_PORT, msg, sockfd);
         msg = UDPrecv(sockfd);
-        send(client__sockfd, msg.c_str(), msg.size(), 0);
+        send(client_sockfd, msg.c_str(), msg.size(), 0);
     }
     if(choice == "position")
     {
@@ -411,14 +344,18 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
         getline(stream, clientSock, ';');
         cout << "shares: " << shares << endl;
         string Quote_msg = string("quote;") + stockName + string(";") + clientSock;
+        cout << "sending to serverQ" << endl;
         UDPsend(QUOT_PORT, Quote_msg, sockfd);
+        cout << "sent to serverQ" << endl;
+        cout << "receving from serverQ" << endl;
         string quoteMsg = UDPrecv(sockfd);
+        cout << "received from serverQ" << endl;
         // retrieve;<user>;<stock_name>;<socket_Num>
 	    // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
         if(subOp == "buy")
         {
-            send(client__sockfd, quoteMsg.c_str(), quoteMsg.size(), 0);
-            string conMsg = TCPrecv(client__sockfd);
+            send(client_sockfd, quoteMsg.c_str(), quoteMsg.size(), 0);
+            string conMsg = TCPrecv(client_sockfd);
             // cout << "ServerM from Client Confirmation Message: " << conMsg << endl;
             istringstream conStream(conMsg);
             getline(conStream, confirmation, ';');
@@ -476,8 +413,12 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
         else if (subOp == "sell")
         {
             string requestMsg = "retrieve;" + userID + ";" + stockName + ";" + clientSock;
+            cout << "sending to serverP" << endl;
             UDPsend(PORT_PORT, requestMsg, sockfd);
+            cout << "sent to serverP" << endl;
+            cout << "receiving from serverP" << endl;
             string clientPos = UDPrecv(sockfd); 
+            cout << "received from serverP" << endl;
             // user;stock;quantity;price;indexInVector;socketNum    Valid
             // user;targetStock;NA;NA;-1;socketNum                  User does not own stock currently
             // user;NA;NA;NA;-1;socketNum;                          User Not Found
@@ -494,7 +435,8 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
 
             string quote_MsgType, quote_stockName, quote_price, quote_clientSock;
             // quote;S1;697.46;5
-            istringstream quotStream(quoteMsg);
+            string modQuote = quoteMsg;
+            istringstream quotStream(modQuote);
             getline(quotStream, quote_MsgType, ';');
             getline(quotStream, quote_stockName, ';');
             getline(quotStream, quote_price, ';');
@@ -502,51 +444,65 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
 
             if(stoi(shares) > stoi(position_shares))
             {
+                string TCPReturnMsg = "FAIL";
+                cout << "sending to client" << endl;
+                send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
+                cout << "sent to client" << endl;
                 cout << "shares requested exceed allocation" << endl;
                 // Sell failed not enough shares
                 string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
+                cout << "sending to serverQ" << endl;
                 UDPsend(QUOT_PORT, updateQuote, sockfd);
-                string TCPReturnMsg = "FAIL";
-                send(client__sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
+                cout << "sent to serverQ" << endl;
                 return;
             }
+            else
+            {
+                string TCPReturnMsg = "PASS";
+                cout << "sending to client" << endl;
+                send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
+                cout << "sent to client" << endl;
+                cout << "Sending to client" << endl;
+                //send(client_sockfd, quoteMsg.c_str(), quoteMsg.size(), 0);
+                sleep(1);
+                send(client_sockfd, quoteMsg.c_str(), quoteMsg.size(), 0); // For some reason, client expects the second send but not the first
+                cout << "Sent quote to Client: "<< quoteMsg <<endl;
 
-            send(client__sockfd, quoteMsg.c_str(), quoteMsg.size(), 0);
-            cout << "Sending quote to Client: "<< quoteMsg <<endl;
-            string conMsg = TCPrecv(client__sockfd);
-            cout << "ServerM from Client Confirmation Message: " << conMsg << endl;
-            istringstream conStream(conMsg);
-            getline(conStream, confirmation, ';');
-            
-            if (confirmation == "N")
-            {
-                string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
-                UDPsend(QUOT_PORT, updateQuote, sockfd);
-                return;
-            }
-            else 
-            {
+                cout << "receiving from Client" << endl;
+                string conMsg = TCPrecv(client_sockfd);
+                cout << "ServerM from Client Confirmation Message: " << conMsg << endl;
+                istringstream conStream(conMsg);
+                getline(conStream, confirmation, ';');
                 
-                if(position_shares == "NA" && position_stockName == stockName)
+                if (confirmation == "N")
                 {
-                    double avgBuy = avgBuyPrice(stoi(shares),stod(quote_price));
-                    // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
-                    string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + shares + ";" + to_string(avgBuy) + ";" + position_index + ";" + position_clientSock;
-                    UDPsend(PORT_PORT, updatePos, sockfd);
-                    UDPsend(QUOT_PORT, updatePos, sockfd);
+                    string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
+                    UDPsend(QUOT_PORT, updateQuote, sockfd);
+                    return;
                 }
-                else if(position_shares != "NA" && position_stockName == stockName)
+                else 
                 {
-                    double avgBuy = avgBuyPriceNew(stoi(shares), stod(quote_price), stoi(position_shares), stod(position_price)) ;
-                    int newShares = stoi(shares) + stoi(position_shares);
-                    // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
-                    string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + to_string(newShares) + ";" + to_string(avgBuy) + ";" + position_index + ";" + position_clientSock;
-                    UDPsend(PORT_PORT, updatePos, sockfd);
-                    UDPsend(QUOT_PORT, updatePos, sockfd);
+                    
+                    if(position_shares == "NA" && position_stockName == stockName)
+                    {
+                        double avgBuy = avgBuyPrice(stoi(shares),stod(quote_price));
+                        // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
+                        string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + shares + ";" + to_string(avgBuy) + ";" + position_index + ";" + position_clientSock;
+                        UDPsend(PORT_PORT, updatePos, sockfd);
+                        UDPsend(QUOT_PORT, updatePos, sockfd);
+                    }
+                    else if(position_shares != "NA" && position_stockName == stockName)
+                    {
+                        double avgBuy = avgBuyPriceNew(stoi(shares), stod(quote_price), stoi(position_shares), stod(position_price)) ;
+                        int newShares = stoi(shares) + stoi(position_shares);
+                        // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
+                        string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + to_string(newShares) + ";" + to_string(avgBuy) + ";" + position_index + ";" + position_clientSock;
+                        UDPsend(PORT_PORT, updatePos, sockfd);
+                        UDPsend(QUOT_PORT, updatePos, sockfd);
+                    }
+                    
                 }
-                
             }
-            
         }
         
     }
@@ -555,7 +511,7 @@ void operationType(string receivedMsg, int sockfd, int client__sockfd)
         msg = receivedMsg;
         UDPsend(QUOT_PORT, msg, sockfd);
         msg = UDPrecv(sockfd);
-        send(client__sockfd, msg.c_str(), msg.size(), 0);
+        send(client_sockfd, msg.c_str(), msg.size(), 0);
     }
     //return msg;
 }
