@@ -190,7 +190,7 @@ string getStock(string user, string targetStock, string socketNum, map<string, v
 		}
 		if(stockPosition == "")
 		{
-			stockPosition = user + ";" + targetStock + "NA;NA;-1;" + socketNum; // User does not own stock currently
+			stockPosition = user + ";" + targetStock + ";NA;NA;-1;" + socketNum; // User does not own stock currently
 		}
 	}
 	else
