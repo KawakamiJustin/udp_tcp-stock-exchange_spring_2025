@@ -218,9 +218,10 @@ void parseQuote(int sockfd)
     
 }
 
-string parseTransact(int sockfd)
+string parseTransact(int sockfd, string operation)
 {
     string receivedMsg = recvString(sockfd);
+    cout << "Received Quote from serverM: " << receivedMsg << endl;
     istringstream stream(receivedMsg);
     string parsedMsg, msgType, stockName, stockPrice;
     string newMsg = "";
@@ -251,13 +252,13 @@ string parseTransact(int sockfd)
     }
     else
     {
-        cout << "[Client] " << stockName << "'s current price is " << stockPrice << ". Proceed to buy? (Y/N)" << endl;
+        cout << "[Client] " << stockName << "'s current price is " << stockPrice << ". Proceed to " << operation << "? (Y/N)" << endl;
         cin.clear();
         getline(cin, response);
         if(response != "Y" && response != "N")
         {
             cout << "[Client] You have entered an invalid character." << endl;
-            cout << "[Client] " << stockName << "'s current price is " << stockPrice << ". Proceed to buy? (Y/N)" << endl;
+            cout << "[Client] " << stockName << "'s current price is " << stockPrice << ". Proceed to " << operation << "? (Y/N)" << endl;
             cin.clear();
             getline(cin, response);
         }
@@ -320,9 +321,19 @@ void quote(int sockfd, string name)
 
 void transact(int sockfd, string operation, string stock, string quantity, string user)
 {
-    string command = string("transact;") + operation + ";" + user + ";" + stock + ";" + quantity;
+    string command = "transact;" + operation + ";" + user + ";" + stock + ";" + quantity;
     send(sockfd ,command.c_str(), command.size(), 0);
-    string response = parseTransact(sockfd);
+    if(operation == "sell")
+    {
+        string sellValid = recvString(sockfd);
+        if(sellValid == "FAIL")
+        {
+            cout << "[Client] Error: " << user << " does not have enough shares of " << stock <<".\n ---Start a new request---\n" << endl;
+            return;
+        }
+    }
+    //cout << "After sell: " <<endl;
+    string response = parseTransact(sockfd, operation);
     if (response == "Y")
     {
         command = response + string(";") + user + ";" + quantity;
@@ -332,7 +343,6 @@ void transact(int sockfd, string operation, string stock, string quantity, strin
         command = response + string(";") + user + ";" + quantity;
     }
     send(sockfd ,command.c_str(), command.size(), 0);
-    
 }
 
 void getPortfolio(int sockfd, string user)
