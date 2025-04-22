@@ -9,13 +9,12 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <sstream>
 #include <vector>
 #include <limits>
 
 using namespace std;
-
-#include <arpa/inet.h>
 
 #define PORT 45110 //the port client will be connecting to
 #define MAXBUFLEN 512
@@ -224,7 +223,7 @@ void parseQuote(int sockfd)
 string parseTransact(int sockfd, string operation)
 {
     string receivedMsg = recvString(sockfd);
-    cout << "Received Quote from serverM: " << receivedMsg << endl;
+    //cout << "Received Quote from serverM: " << receivedMsg << endl;
     istringstream stream(receivedMsg);
     string parsedMsg, msgType, stockName, stockPrice;
     string newMsg = "";
@@ -355,7 +354,7 @@ void transact(int sockfd, string operation, string stock, string quantity, strin
         }
         else if (sellValid == "stock_FAIL")
         {
-            cout << "[Client] Error: stock names does not exist. Please check again."<< endl;
+            cout << "[Client] Error: stock name does not exist. Please check again."<< endl;
             return;
         }
     }
@@ -370,6 +369,19 @@ void transact(int sockfd, string operation, string stock, string quantity, strin
         command = response + string(";") + user + ";" + quantity;
     }
     send(sockfd ,command.c_str(), command.size(), 0);
+    string statusUpdate = recvString(sockfd);
+    //cout << statusUpdate << endl;
+    istringstream transactResult(statusUpdate);// "buy/sell;confirm/deny;" + user + ";" + targetStock + ";" + to_string(quantity);
+    string operation, confirmation, userInfo, stockTransact, shareQuantity;
+    getline(transactResult, operation, ';');
+    getline(transactResult, confirmation, ';');
+    getline(transactResult, userInfo, ';');
+    getline(transactResult, stockTransact, ';');
+    getline(transactResult, shareQuantity, ';');
+    if (operation == "buy")
+    {
+        
+    }
 }
 
 void getPortfolio(int sockfd, string user)

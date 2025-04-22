@@ -399,26 +399,33 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
 {
     string msg;
     istringstream stream(receivedMsg);
-    cout << "operationType received message: " << receivedMsg << endl;
+    // cout << "operationType received message: " << receivedMsg << endl;
     string choice, subOp, userID, stockName, shares, price, clientSock, confirmation;
     getline(stream, choice, ';');
     if(choice == "credentials")
     {
         msg = passwordEncrypt(receivedMsg);
         UDPsend(AUTH_PORT, msg, sockfd);
+        cout << "[Server M] Sent the authetication request to Server A" << endl;
         msg = UDPrecv(sockfd);
+        cout << "[Server M] Received the response from server A using UDP over " << UDP_PORT << endl;
         send(client_sockfd, msg.c_str(), msg.size(), 0);
+        cout << "[Server M] Sent the respoonse from server A to the client using TCP over port " << PORT << endl;
     }
     if(choice == "position")
     {
         // position;<user>;<socket_Num>
         msg = receivedMsg;
+        getline(stream, userID, ';');
+        cout << "[Server M] Received a position request from Member to check " << userID << "'s gain using TCP over port " << PORT << "." << endl;
         UDPsend(PORT_PORT, msg, sockfd);
+        cout << "[Server M] Forwarded the position request to server P." << endl;
         string userPort = UDPrecv(sockfd);
+        cout << "[Server M] Received user's portfolio from server P using UDP over " << UDP_PORT << endl;
         UDPsend(QUOT_PORT, "quote;all", sockfd);
         string stockQuotes = UDPrecv(sockfd);
         string clientPos = constructNewMsg(userPort, stockQuotes);
-        cout << "sending to client: " << clientPos << endl;
+        cout << "[Server M] Forwarded the gain to the client." << endl;
         send(client_sockfd, clientPos.c_str(), clientPos.size(), 0);
     }
     if(choice == "transact")
@@ -428,31 +435,43 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
         getline(stream, stockName, ';');
         getline(stream, shares, ';');
         getline(stream, clientSock, ';');
-        cout << "shares: " << shares << endl;
+        if(subOp == "sell")
+        {
+            cout << "[Server M] Received a sell request from member " << userID << " using TCP over port " << PORT << endl;
+        }
+        else
+        {
+            cout << "[Server M] Received a buy request from member " << userID << " using TCP over port " << PORT << endl;
+        }
         string Quote_msg = string("quote;") + stockName + string(";") + clientSock;
-        cout << "sending to serverQ" << endl;
         UDPsend(QUOT_PORT, Quote_msg, sockfd);
-        cout << "sent to serverQ" << endl;
-        cout << "receving from serverQ" << endl;
+        cout << "[Server M] Sent quote request to server Q." << endl;
         string quoteMsg = UDPrecv(sockfd);
-        cout << "received from serverQ" << endl;
+        cout << "[Server M] Received quote response from server Q." << endl;
         // retrieve;<user>;<stock_name>;<socket_Num>
 	    // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
         if(subOp == "buy")
         {
             send(client_sockfd, quoteMsg.c_str(), quoteMsg.size(), 0);
+            cout << "[Server M] Sent the buy confirmation to the client." << endl;
             string conMsg = TCPrecv(client_sockfd);
-            // cout << "ServerM from Client Confirmation Message: " << conMsg << endl;
             istringstream conStream(conMsg);
             getline(conStream, confirmation, ';');
             if (confirmation == "N")
             {
+
+                cout << "[Server M] Buy denied." << endl;
                 string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
                 UDPsend(QUOT_PORT, updateQuote, sockfd);
+                cout << "[Server M] Sent a time forward request for " << stockName << endl;
                 return;
             }
             else 
             {
+                cout << "[Server M] Buy approved." << endl;
+                string forwardConf = confirmation + ";buy";
+                UDPsend(PORT_PORT, forwardConf, sockfd);
+                cout << "[Server M] Forwarded the buy confirmation response to Server P." << endl;
                 string quote_MsgType, quote_stockName, quote_price, quote_clientSock;
                 // quote;S1;697.46;5
                 istringstream quotStream(quoteMsg);
@@ -466,7 +485,7 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
                 // user;stock;quantity;price;indexInVector;socketNum    Valid
                 // user;targetStock;NA;NA;-1;socketNum                  User does not own stock currently
                 // user;NA;NA;NA;-1;socketNum;                          User Not Found
-                cout << "received from portfolio: " << clientPos << endl;
+                // cout << "received from portfolio: " << clientPos << endl;
                 // parse message to extract information about the user's position
                 string position_userID, position_stockName, position_shares, position_index, position_price, position_clientSock;
                 istringstream clientInfo(clientPos);
@@ -484,6 +503,7 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
                     string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + shares + ";" + to_string(avgBuy) + ";" + position_index + ";" + position_clientSock;
                     UDPsend(PORT_PORT, updatePos, sockfd);
                     UDPsend(QUOT_PORT, updatePos, sockfd);
+                    cout << "[Server M] Sent a time forward request for " << stockName << endl;
                 }
                 else if(position_shares != "NA" && position_stockName == stockName)
                 {
@@ -492,24 +512,30 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
                     // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
                     string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + to_string(newShares) + ";" + to_string(avgBuy) + ";" + position_index + ";" + position_clientSock;
                     UDPsend(PORT_PORT, updatePos, sockfd);
+                    string transactMsg = UDPrecv(sockfd); // "buy;confirm;" + user + ";" + targetStock + ";" + to_string(quantity);
+                    // forward transactMsg to client (might need to update client)
+                    send(client_sockfd, transactMsg.c_str(), transactMsg.size(), 0);
+                    cout << "[Server M] Forwarded the buy result to client." << endl;
                     UDPsend(QUOT_PORT, updatePos, sockfd);
+                    cout << "[Server M] Sent a time forward request for " << stockName << endl;
                 }
             }
         }
         else if (subOp == "sell")
         {
+            cout << "[Server M] Received a sell request from member " << userID << " using TCP over port " << PORT << endl;
             string checkMsg = "check;" + userID + ";" + stockName + ";" + shares + ";" + clientSock; // check;<user>;<stock_name>;<quantity>;<socket_Num>
-            cout << "check message: " << checkMsg << endl;
+            //cout << "check message: " << checkMsg << endl;
             string requestMsg = "retrieve;" + userID + ";" + stockName + ";" + clientSock;
             UDPsend(PORT_PORT, checkMsg, sockfd); 
+            cout << "[Server M] Forwarded the sell request to server P." << endl;
             string checkResponse = UDPrecv(sockfd); // check;user;stock;pass/fail;socketNum
             string resStatus;
             istringstream responseVal(checkResponse);
             for(int i = 0; i < 4; i++)
             {
-                 getline(responseVal, resStatus, ';'); // PASS or FAIL
+                getline(responseVal, resStatus, ';'); // PASS or FAIL
             }
-            cout << resStatus << endl;
             // user;stock;quantity;price;indexInVector;socketNum    Valid
             // user;targetStock;NA;NA;-1;socketNum                  User does not own stock currently
             // user;NA;NA;NA;-1;socketNum;                          User Not Found
@@ -536,6 +562,7 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
             if(position_shares == "NA" && quote_price == "NA")
             {
                 string TCPReturnMsg = "stock_FAIL";
+                sleep(1);
                 send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
                 // Sell failed not enough shares
                 // string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
@@ -544,46 +571,65 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
             }
             else if(position_shares == "NA" && quote_price != "NA")
             {
-                string TCPReturnMsg = "FAIL";
+                string TCPReturnMsg = "stock_FAIL";
+                //sleep(1);
                 send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
                 // Sell failed not enough shares
                 string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
                 UDPsend(QUOT_PORT, updateQuote, sockfd);
+                cout << "[Server M] Sent a time forward request for " << stockName << endl;
                 return;
             }
             else if(resStatus == "FAIL")
             {
+                //sleep(1);
                 send(client_sockfd, resStatus.c_str(), resStatus.size(), 0);
                 // Sell failed not enough shares
                 string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
                 UDPsend(QUOT_PORT, updateQuote, sockfd);
+                cout << "[Server M] Sent a time forward request for " << stockName << endl;
                 return;
             }
             else
             {
                 string TCPReturnMsg = "PASS";
+                //sleep(1);
                 send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
                 //send(client_sockfd, quoteMsg.c_str(), quoteMsg.size(), 0);
                 sleep(1);
                 send(client_sockfd, quoteMsg.c_str(), quoteMsg.size(), 0); // Need to sleep to allow first send to finish
+                cout << "[Server M] Forwarded the sell confirmation to the client." << endl;
                 string conMsg = TCPrecv(client_sockfd);
-                cout << "ServerM from Client Confirmation Message: " << conMsg << endl;
+                // cout << "ServerM from Client Confirmation Message: " << conMsg << endl;
                 istringstream conStream(conMsg);
                 getline(conStream, confirmation, ';');
                 
                 if (confirmation == "N")
                 {
                     string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
+                    string forwardConf = confirmation + ";sell";
+                    UDPsend(PORT_PORT, forwardConf, sockfd);
+                    cout << "[Server M] Forwarded the sell confirmation response to Server P." << endl;
                     UDPsend(QUOT_PORT, updateQuote, sockfd);
+                    cout << "[Server M] Sent a time forward request for " << stockName << endl;
                     return;
                 }
                 else 
                 {
+                    string forwardConf = confirmation + ";sell";
+                    UDPsend(PORT_PORT, forwardConf, sockfd);
+                    cout << "[Server M] Forwarded the sell confirmation response to Server P." << endl;
                     int newShares = stoi(position_shares) - stoi(shares);
                     // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
                     string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + to_string(newShares) + ";" + position_price + ";" + position_index + ";" + position_clientSock;
                     UDPsend(PORT_PORT, updatePos, sockfd);
+                    sleep(1);
+                    string transactMsg = UDPrecv(sockfd); // "sell;confirm/deny;" + user + ";" + targetStock + ";" + to_string(quantity);
+                    //cout << "Receiving update from serverP: " << transactMsg << endl;
+                    send(client_sockfd, transactMsg.c_str(), transactMsg.size(), 0);
+                    cout << "[Server M] Forwarded the sell result to client." << endl;
                     UDPsend(QUOT_PORT, updatePos, sockfd);
+                    cout << "[Server M] Sent a time forward request for " << stockName << endl;
                 }
             }
         }
@@ -591,12 +637,33 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
     }
     if(choice == "quote")
     {
+        string user, name;
+        getline(stream, user, ';');
+        getline(stream, name, ';');
+        if(name == "all")
+        {
+            cout << "[Server M] Received a quote request from " << user << ", using TCP over port " << PORT << endl;
+        }
+        else
+        {
+            cout << "[Server M] Received a quote request from " << user << " for stock "<< name << ", using TCP over port " << PORT << endl;
+        }
         msg = receivedMsg;
         UDPsend(QUOT_PORT, msg, sockfd);
-        msg = UDPrecv(sockfd);
-        send(client_sockfd, msg.c_str(), msg.size(), 0);
+        cout << "[Server M] Forwarded the quote request to server Q." << endl;
+        string msgResponse = UDPrecv(sockfd);
+        if(name == "all")
+        {
+            cout << "[Server M] Received a quote response from server Q using UDP over " << UDP_PORT << endl;
+        }
+        else
+        {
+            cout << "[Server M] Received a quote request from server Q for stock "<< name << ", using UDP over " << UDP_PORT << endl;
+        }
+        
+
+        send(client_sockfd, msgResponse.c_str(), msgResponse.size(), 0);
     }
-    //return msg;
 }
 
 // Main

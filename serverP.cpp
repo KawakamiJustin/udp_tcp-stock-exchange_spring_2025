@@ -183,7 +183,6 @@ string getStock(string user, string targetStock, string socketNum, map<string, v
 				price = stocks[index].avgPrice;
 				ostringstream stream;
             	stream << fixed << setprecision(2) << price;
-				cout << "Price: " << to_string(price) <<"\nStream Price: " << stream.str() << endl;
 				stockPosition = user + ";" + targetStock + ";" + quant + ";" + stream.str() +";" + to_string(index) + ";" + socketNum;
 				return stockPosition;
 			}
@@ -204,6 +203,7 @@ string checkStock(string user, string targetStock, int quantity, string socketNu
 {
 	string checkSeq = "";
 	int quant = 0;
+	bool stockMatch = false;
 	vector<stock> assignedStocks;
 	if(portfolio.find(user) != portfolio.end())
 	{
@@ -213,24 +213,29 @@ string checkStock(string user, string targetStock, int quantity, string socketNu
 			if(stocks[index].stockName == targetStock)
 			{
 				quant = stocks[index].quantity;
+				stockMatch = true;
 			}
 		}
 	}
-	// cout << "Requested quantity: " << quantity <<"\nCurrent quantity: "<< to_string(quant) << endl;
-	if(quantity > quant)
+	if(quantity > quant && stockMatch)
 	{
 		checkSeq = "check;" + user + ";" + targetStock + ";FAIL;" + socketNum; 
-
+		cout << "[Server P] Stock " << targetStock << " does not have enough shares in "<< user <<"'s portfolio. Unable to sell " << quantity << " shares of "  << targetStock << "." << endl;
+	}
+	else if (quantity <= quant && stockMatch)
+	{
+		checkSeq = "check;" + user + ";" + targetStock + ";PASS;" + socketNum;
 	}
 	else
 	{
-		checkSeq = "check;" + user + ";" + targetStock + ";PASS;" + socketNum;
+		checkSeq = "NOMATCH";
 	}
 	return checkSeq; // check;user;stock;pass/fail;socketNum
 }
 
-void updateStock(string user, string targetStock, int quantity, int indexNum, double price, map<string, vector<stock>> &portfolio)
+string updateStock(string user, string targetStock, int quantity, int indexNum, double price, map<string, vector<stock>> &portfolio)
 {
+	string tranasactConfirm;
 	if (indexNum == -1)
 	{
 		stock newStock;
@@ -238,26 +243,58 @@ void updateStock(string user, string targetStock, int quantity, int indexNum, do
 		newStock.quantity = quantity;
 		newStock.avgPrice = price;
 		portfolio[user].push_back(newStock);
+		cout << "[Server P] Successfully bought "<< to_string(quantity) << " shares of " << targetStock << " and updated "<< user << "'s portfolio." << endl;
+		tranasactConfirm = "buy;confirm;" + user + ";" + targetStock + ";" + to_string(quantity);
 	}
 	else
 	{
 		if(quantity != 0)
 		{
+			if(portfolio[user][indexNum].quantity > quantity)
+			{
+				int dif = portfolio[user][indexNum].quantity - quantity;
+				cout << "[Server P] Successfully sold "<< to_string(dif) << " shares of " << targetStock << " and updated "<< user << "'s portfolio." << endl;
+				tranasactConfirm = "sell;confirm;" + user + ";" + targetStock + ";" + to_string(dif);
+			}
+			else
+			{
+				int dif =  quantity - portfolio[user][indexNum].quantity;
+				cout << "[Server P] Successfully bought "<< to_string(dif) << " shares of " << targetStock << " and updated "<< user << "'s portfolio." << endl;
+				tranasactConfirm = "buy;confirm;" + user + ";" + targetStock + ";" + to_string(dif);
+			}
 			portfolio[user][indexNum].quantity = quantity;
 			portfolio[user][indexNum].avgPrice = price;
 		}
-		else
+		else if (portfolio[user][indexNum].quantity != 0 && quantity == 0)
 		{
+			int oldQuant = portfolio[user][indexNum].quantity;
 			portfolio[user].erase(portfolio[user].begin() + indexNum);
+			cout << "[Server P] Successfully sold "<< to_string(oldQuant) << " shares of " << targetStock << " and updated "<< user << "'s portfolio." << endl;
+			tranasactConfirm = "sell;confirm;" + user + ";" + targetStock + ";" + to_string(oldQuant);
 		}
 	}
+	return tranasactConfirm;
 }
 
 string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfolio)
 {
     buf[numbytes] = '\0';
     string rawData(buf);
-    cout << "raw data: " << rawData << endl;
+	if(rawData == "N;sell")
+	{
+		cout << "[Server P] Sell denied." << endl;
+		return "NOCHANGE";
+	}
+	else if(rawData == "Y;sell")
+	{
+		cout << "[Server P] User approves selling the stock." << endl;
+		return "NOCHANGE";
+	}
+	else if(rawData == "Y;buy")
+	{
+		cout << "[Server P] Received a buy request from the client." << endl;
+		return "NOCHANGE";
+	}
     istringstream stream(rawData);
     string parsedMsg, MsgType, user, stockName, socketNum, rawMsg;
 	int quantity, indexNum;
@@ -342,8 +379,8 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
     }
 	else if(MsgType == "update")
 	{
-		updateStock(user, stockName, quantity, indexNum, price, portfolio);
-		return "update";
+		string statusUpdate = updateStock(user, stockName, quantity, indexNum, price, portfolio);
+		return statusUpdate;
 	}
 }
 
@@ -358,15 +395,10 @@ string listen_pkts(int sockfd, map<string, vector<stock>> &portfolio)
 	memset(buf, 0, sizeof(buf)); // clear buffer
 	if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
 		(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		perror("recvfrom");
+		//perror("recvfrom");
 		exit(1);
 	}
-
-	printf("listener: got packet from %s\n",
-		inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
-	printf("listener: packet is %d bytes long\n", numbytes);
 	buf[numbytes] = '\0';
-	printf("listener: packet contains \"%s\"\n", buf);
     string messageToSend = process_data(buf, numbytes, portfolio);
     return messageToSend;
 }
@@ -391,13 +423,21 @@ int main(void)
 	cout << "[Server P] Booting up using UDP on port 42110 " << endl;
 	int sockfd = startServer();
 	map<string, vector<stock>> portfolio = onStartUp();
+	string msgType;
 	while(true)
     {
         string udpResponse = listen_pkts(sockfd, portfolio);
-		if(udpResponse != "update")
+		if(udpResponse != "NOCHANGE")
 		{
-			cout << "Sending Msg: " << udpResponse << endl;
 			udpSendMsg(udpResponse, sockfd);
+			// cout << "Sending Msg: " << udpResponse << endl;
+			istringstream positionReq(udpResponse);
+			getline(positionReq, msgType, ';');
+			if(msgType == "position")
+			{
+				getline(positionReq, msgType, ';');
+				cout << "[Server P] Finished sending the gain and portfolio of " << msgType << endl;
+			}
 		}
     }
 	close(sockfd);

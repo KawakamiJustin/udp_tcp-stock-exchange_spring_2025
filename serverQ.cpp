@@ -97,13 +97,13 @@ int startServer()
 	for(p = servinfo; p != NULL; p = p->ai_next) {
 		if ((sockfd = socket(p->ai_family, p->ai_socktype,
 				p->ai_protocol)) == -1) {
-			perror("listener: socket");
+			//perror("listener: socket");
 			continue;
 		}
 
 		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
-			perror("listener: bind");
+			//perror("listener: bind");
 			continue;
 		}
 
@@ -111,12 +111,12 @@ int startServer()
 	}
 
 	if (p == NULL) {
-		fprintf(stderr, "listener: failed to bind socket\n");
+		//fprintf(stderr, "listener: failed to bind socket\n");
 	}
 
 	freeaddrinfo(servinfo);
 
-	printf("listener: waiting to recvfrom...\n");
+	//printf("listener: waiting to recvfrom...\n");
     return sockfd;
 }
 
@@ -150,6 +150,7 @@ string getQuote(map<string, priceData> &quotes, string stockName)
     priceData priceInfo;
     if (stockName == "all")
     {
+        cout << "[Server Q] Received a quote request from the main server." << endl;
         quoteMsg += "start;";
         int mapSize = quotes.size();
         for (const auto &entry : quotes)
@@ -164,9 +165,11 @@ string getQuote(map<string, priceData> &quotes, string stockName)
             quoteMsg += quoteName + ";" + stream.str() + ";";
         }
         quoteMsg += "end";
+        cout << "[Server Q] Returned all stock quotes." << endl;
     }
     else
     {
+        cout << "[Server Q] Received a quote request from the main server for stock " << stockName << "." << endl;
         if(quotes.find(stockName) != quotes.end())
         {
             priceInfo = quotes[stockName];
@@ -181,6 +184,7 @@ string getQuote(map<string, priceData> &quotes, string stockName)
         {
             quoteMsg = stockName + ";NA";
         }
+        cout << "[Server Q] Returned the stock quote of " << stockName << "." << endl;
     }
     return quoteMsg;
 }
@@ -189,7 +193,6 @@ string process_data(char *buf, int numbytes, map<string, priceData> &quotes)
 {
     buf[numbytes] = '\0';
     string rawData(buf);
-    cout << "raw data: " << rawData << endl;
     istringstream stream(rawData);
     string parsedMsg, MsgType, whichQuote, socketNum;
     string newMsg = "";
@@ -217,7 +220,6 @@ string process_data(char *buf, int numbytes, map<string, priceData> &quotes)
     if(MsgType == "update")
     {
         updatePrice(quotes, whichQuote);
-        cout << "Updated Quote: " << whichQuote << endl;
         return "DONE";
     }
     else if (MsgType == "quote")
@@ -239,15 +241,15 @@ string listen_pkts(int sockfd, map<string, priceData> &quotes)
     memset(buf, 0, sizeof(buf)); // clear buffer
 	if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
 		(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		perror("recvfrom");
+		//perror("recvfrom");
 		exit(1);
 	}
 
-	printf("listener: got packet from %s\n",
-		inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
-	printf("listener: packet is %d bytes long\n", numbytes);
+	//printf("listener: got packet from %s\n",
+	//	inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
+	//printf("listener: packet is %d bytes long\n", numbytes);
 	buf[numbytes] = '\0';
-	printf("listener: packet contains \"%s\"\n", buf);
+	//printf("listener: packet contains \"%s\"\n", buf);
     string status = process_data(buf, numbytes, quotes);
     return status;
 }
@@ -267,8 +269,6 @@ void udpSendMsg(string message, int mysockfd)
 	freeaddrinfo(servinfo);
 }
 
-
-
 int main()
 {
     cout << "[Server Q] Booting up using UDP on port 43110 " << endl;
@@ -277,18 +277,9 @@ int main()
     int sockfd = startServer();
     char buffer[MAXBUFLEN];
     string stockName;
-    /*while (stockName != "quit")
-    {
-        //cout << "Enter data (format update;quote|quote;stock;socketNum): ";
-        //cin.getline(buffer, bufferSize);
-        //int numbytes = strlen(buffer);
-        //string output = process_data(buffer, numbytes, quotes);
-        //cout << output << endl;
-    }*/
     while(true)
     {
         newMsg = listen_pkts(sockfd, quotes);
-        cout << newMsg << endl;
         if(newMsg != "DONE")
         {
             udpSendMsg(newMsg, sockfd);
