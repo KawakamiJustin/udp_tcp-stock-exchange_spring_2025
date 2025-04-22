@@ -228,11 +228,11 @@ string UDPrecv(int sockfd)
 		exit(1);
 	}
 
-	printf("listener: got packet from %s\n",
-		inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
-	printf("listener: packet is %d bytes long\n", numbytes);
-	buf[numbytes] = '\0';
-	printf("listener: packet contains \"%s\"\n", buf);
+	//printf("listener: got packet from %s\n",
+	//	inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
+	//printf("listener: packet is %d bytes long\n", numbytes);
+	//buf[numbytes] = '\0';
+	//printf("listener: packet contains \"%s\"\n", buf);
     buf[numbytes] = '\0';
     string rawData(buf);
     return rawData;
@@ -481,6 +481,7 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
                 getline(quotStream, quote_clientSock, ';');
                 string requestMsg = "retrieve;" + userID + ";" + stockName + ";" + clientSock;
                 UDPsend(PORT_PORT, requestMsg, sockfd);
+                //sleep(1);
                 string clientPos = UDPrecv(sockfd); 
                 // user;stock;quantity;price;indexInVector;socketNum    Valid
                 // user;targetStock;NA;NA;-1;socketNum                  User does not own stock currently
@@ -502,6 +503,9 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
                     // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
                     string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + shares + ";" + to_string(avgBuy) + ";" + position_index + ";" + position_clientSock;
                     UDPsend(PORT_PORT, updatePos, sockfd);
+                    string transactMsg = UDPrecv(sockfd);
+                    send(client_sockfd, transactMsg.c_str(), transactMsg.size(), 0);
+                    cout << "[Server M] Forwarded the buy result to client." << endl;
                     UDPsend(QUOT_PORT, updatePos, sockfd);
                     cout << "[Server M] Sent a time forward request for " << stockName << endl;
                 }
@@ -571,7 +575,7 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
             }
             else if(position_shares == "NA" && quote_price != "NA")
             {
-                string TCPReturnMsg = "stock_FAIL";
+                string TCPReturnMsg = "FAIL";
                 //sleep(1);
                 send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
                 // Sell failed not enough shares

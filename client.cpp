@@ -105,20 +105,22 @@ string login(int sockfd)
     string username = "";
     string password = "";
     cout << "Please enter the username: ";
-    cin >> username;
-    while(username.length() < 1 || username.length() > 50)
+    //cin >> username;
+    getline(cin, username);
+    while(username.empty() || username.length() > 50 )
     {
         cout << "Please enter a valid username\n";
-        cout << "Please enter the username: \t";
-        cin >> username;
+        cout << "Please enter the username: ";
+        getline(cin, username);
     }
     cout << "Please enter the password: ";
-    cin >> password;
-    while(password.length() < 1 || password.length() > 50)
+    //cin >> password;
+    getline(cin, password);
+    while(password.empty() || password.length() > 50)
     {
         cout << "Please enter a valid password\n";
         cout << "Please enter the password: ";
-        cin >> password;
+        getline(cin, password);
     }
     string user_id = string("credentials;") + username +";"+ password;
     send(sockfd, user_id.c_str(), user_id.size(), 0);
@@ -143,7 +145,6 @@ string parseAUTH(string receivedMsg)
             status = parsedMsg;
         }
     }
-    cout << "[Client] Received username " << usersname << " and status: " << status << endl;
     return status;
 }
 
@@ -369,18 +370,25 @@ void transact(int sockfd, string operation, string stock, string quantity, strin
         command = response + string(";") + user + ";" + quantity;
     }
     send(sockfd ,command.c_str(), command.size(), 0);
+    //sleep(2);
     string statusUpdate = recvString(sockfd);
     //cout << statusUpdate << endl;
     istringstream transactResult(statusUpdate);// "buy/sell;confirm/deny;" + user + ";" + targetStock + ";" + to_string(quantity);
-    string operation, confirmation, userInfo, stockTransact, shareQuantity;
-    getline(transactResult, operation, ';');
+    string operationType, confirmation, userInfo, stockTransact, shareQuantity;
+    getline(transactResult, operationType, ';');
     getline(transactResult, confirmation, ';');
     getline(transactResult, userInfo, ';');
     getline(transactResult, stockTransact, ';');
     getline(transactResult, shareQuantity, ';');
-    if (operation == "buy")
+    int localPort = getLocalPort(sockfd);
+    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    if (operationType == "buy" && confirmation == "confirm")
     {
-        
+        cout << userInfo << " successfully bought " << shareQuantity <<" shares of " << stockTransact << ".\n ---Start a new request---\n" << endl;
+    }
+    else if (operationType == "sell" && confirmation == "confirm")
+    {
+        cout << userInfo << " successfully sold " << shareQuantity <<" shares of " << stockTransact << ".\n ---Start a new request---\n" << endl;
     }
 }
 
@@ -405,7 +413,7 @@ int main()
     if(nbytes > 0)
     {
         buf[nbytes] = '\0';
-        cout << "received: "<< buf << endl;
+        //cout << "received: "<< buf << endl;
         string recMessage(buf);
         status = parseAUTH(recMessage);
     }
@@ -418,14 +426,14 @@ int main()
         if(nbytes > 0)
         {
             buf[nbytes] = '\0';
-            cout << "received: "<< buf << endl;
+            //cout << "received: "<< buf << endl;
             string recMessage(buf);
             status = parseAUTH(recMessage);
         }
     }
     string choice = "";
     cin.clear();
-    cin.ignore(numeric_limits<streamsize>::max(), '\n'); // clears cin from previous entries
+    //cin.ignore(numeric_limits<streamsize>::max(), '\n'); // clears cin from previous entries
     if(status == "SUCCESS")
     {
         cout << "[Client] You have been granted access. \n";
@@ -433,7 +441,7 @@ int main()
     while(status == "SUCCESS")
     {
         cout << "[Client] Please enter the command:" << endl;
-        cout << ">\tquote \n>\tquote <stock name>\n>\tbuy <stock name> <number of shares>\n>\tsell <stock name> <number of shares>\n>\tposition\n>\texit" << endl;
+        cout << "\tquote \n\tquote <stock name>\n\tbuy <stock name> <number of shares>\n\tsell <stock name> <number of shares>\n\tposition\n\texit" << endl;
         vector<string> selectedOptions;
         string word = "";
         
