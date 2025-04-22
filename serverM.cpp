@@ -12,7 +12,6 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
-//#include <tuple>
 #include <vector>
 #include <map>
 
@@ -253,32 +252,6 @@ void UDPsend(string serverPort, string message, int mysockfd)
 
 	freeaddrinfo(servinfo);
 }
-/*
-string udpSendMsg(string serverPort, string message, int mysockfd, bool updatePrice)
-{
-	struct addrinfo hints, *servinfo;
-
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_INET; // set to AF_INET to use IPv4
-	hints.ai_socktype = SOCK_DGRAM;
-
-	getaddrinfo("localhost", serverPort.c_str(), &hints, &servinfo);
-
-    sendto(mysockfd, message.c_str(), message.length(), 0, servinfo->ai_addr, servinfo->ai_addrlen);
-
-	freeaddrinfo(servinfo);
-    if (!updatePrice)
-    {
-        string listenData = UDPrecv(mysockfd);
-        cout << "Received "<< listenData <<" from server port " << serverPort << endl;
-
-        return listenData;
-    }
-    else
-    {
-        return "";
-    }
-}*/
 
 struct stock
 {
@@ -525,17 +498,23 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
         }
         else if (subOp == "sell")
         {
+            string checkMsg = "check;" + userID + ";" + stockName + ";" + shares + ";" + clientSock; // check;<user>;<stock_name>;<quantity>;<socket_Num>
+            cout << "check message: " << checkMsg << endl;
             string requestMsg = "retrieve;" + userID + ";" + stockName + ";" + clientSock;
-            cout << "sending to serverP" << endl;
-            UDPsend(PORT_PORT, requestMsg, sockfd);
-            cout << "sent to serverP" << endl;
-            cout << "receiving from serverP" << endl;
-            string clientPos = UDPrecv(sockfd); 
-            cout << "received from serverP" << endl;
+            UDPsend(PORT_PORT, checkMsg, sockfd); 
+            string checkResponse = UDPrecv(sockfd); // check;user;stock;pass/fail;socketNum
+            string resStatus;
+            istringstream responseVal(checkResponse);
+            for(int i = 0; i < 4; i++)
+            {
+                 getline(responseVal, resStatus, ';'); // PASS or FAIL
+            }
+            cout << resStatus << endl;
             // user;stock;quantity;price;indexInVector;socketNum    Valid
             // user;targetStock;NA;NA;-1;socketNum                  User does not own stock currently
             // user;NA;NA;NA;-1;socketNum;                          User Not Found
-            cout << "received from portfolio: " << clientPos << endl;
+            UDPsend(PORT_PORT, requestMsg, sockfd);
+            string clientPos = UDPrecv(sockfd);
             // parse message to extract information about the user's position
             string position_userID, position_stockName, position_shares, position_index, position_price, position_clientSock;
             istringstream clientInfo(clientPos);
@@ -559,8 +538,8 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
                 string TCPReturnMsg = "stock_FAIL";
                 send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
                 // Sell failed not enough shares
-                //string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
-                //UDPsend(QUOT_PORT, updateQuote, sockfd);
+                // string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
+                // UDPsend(QUOT_PORT, updateQuote, sockfd);
                 return;
             }
             else if(position_shares == "NA" && quote_price != "NA")
@@ -572,10 +551,9 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
                 UDPsend(QUOT_PORT, updateQuote, sockfd);
                 return;
             }
-            else if(stoi(shares) > stoi(position_shares))
+            else if(resStatus == "FAIL")
             {
-                string TCPReturnMsg = "FAIL";
-                send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
+                send(client_sockfd, resStatus.c_str(), resStatus.size(), 0);
                 // Sell failed not enough shares
                 string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
                 UDPsend(QUOT_PORT, updateQuote, sockfd);
@@ -718,32 +696,7 @@ int main(void)
                         // We got some good data from a client
                         string recMessage(buf);
                         recMessage += ";" + to_string(sender_fd);
-                        // operation = operationType(recMessage);
-                        /*string newMessage = get<0>(operation);
-                        string serverPort = get<1>(operation);
-                        bool updatePrice = get<2>(operation);
-                        cout << "Sending: " << newMessage << " to server " << serverPort << endl;
-                        string responseMsg = udpSendMsg(serverPort, newMessage, udp_sockfd, updatePrice);
-                        if (updatePrice)
-                        {
-                            string upMsg = "update;" + newMessage;
-                            string updateMsg = udpSendMsg(QUOT_PORT, upMsg, udp_sockfd, updatePrice);
-                        }*/
                         operationType(recMessage, udp_sockfd, sender_fd); // new version
-
-                        // Except the listener
-                        /*
-                        if (C_SOCK != listener) {
-                            if (send(C_SOCK, responseMsg.c_str(), responseMsg.size(), 0) == -1) {
-                                perror("send");
-                            }
-                            else
-                            {
-                                // Log what was sent
-                                printf("Server sent to socket %d: %.*s\n", C_SOCK, int(responseMsg.size()), responseMsg.c_str());
-                            }
-                        }*/
-                        
                     }
                 } // END handle data from client
             } // END got ready-to-read from poll()

@@ -79,20 +79,20 @@ int startServer()
 	hints.ai_flags = AI_PASSIVE; // use my IP
 
 	if ((rv = getaddrinfo(NULL, MYPORT, &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		//fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 	}
 
 	// loop through all the results and bind to the first we can
 	for(p = servinfo; p != NULL; p = p->ai_next) {
 		if ((sockfd = socket(p->ai_family, p->ai_socktype,
 				p->ai_protocol)) == -1) {
-			perror("listener: socket");
+			//perror("listener: socket");
 			continue;
 		}
 
 		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
-			perror("listener: bind");
+			//perror("listener: bind");
 			continue;
 		}
 
@@ -100,12 +100,12 @@ int startServer()
 	}
 
 	if (p == NULL) {
-		fprintf(stderr, "listener: failed to bind socket\n");
+		//fprintf(stderr, "listener: failed to bind socket\n");
 	}
 
 	freeaddrinfo(servinfo);
 
-	printf("listener: waiting to recvfrom...\n");
+	//printf("listener: waiting to recvfrom...\n");
     return sockfd;
 }
 
@@ -114,7 +114,7 @@ string process_data(char *buf, int numbytes, map<string, string> users)
 {
     buf[numbytes] = '\0';
     string rawData(buf);
-    cout << "raw data: " << rawData << endl;
+    // cout << "raw data: " << rawData << endl;
     istringstream stream(rawData);
     string parsedMsg, MsgType, username, password, socketNum;
     string newMsg = "";
@@ -139,15 +139,15 @@ string process_data(char *buf, int numbytes, map<string, string> users)
             socketNum = parsedMsg;
         }
     }
-    cout << "[Server A] Received username " << username << "and password "<< password << endl;
+    cout << "[Server A] Received username " << username << " and password ******" << endl;
     if(matchCredentials(username, password, users))
     {
-        cout << "[Server A] Member " << username << "has been authenticated"<< endl;
+        cout << "[Server A] Member " << username << " has been authenticated"<< endl;
         return MsgType + ";" + username + ";SUCCESS;" + socketNum;
     }
     else
     {
-        cout << "[Server A] Member " << username << " has been authenticated"<< endl;
+        cout << "[Server A] The username " << username << " or password ****** is incorrect"<< endl;
         return MsgType + ";" + username + ";FAILURE;" + socketNum;
     }
 }
@@ -163,15 +163,15 @@ string listen_pkts(int sockfd, map<string, string> users)
     memset(buf, 0, sizeof(buf)); // clear buffer
 	if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
 		(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		perror("recvfrom");
+		//perror("recvfrom");
 		exit(1);
 	}
 
-	printf("listener: got packet from %s\n",
-		inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
-	printf("listener: packet is %d bytes long\n", numbytes);
+	//printf("listener: got packet from %s\n",
+		//inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
+	//printf("listener: packet is %d bytes long\n", numbytes);
 	buf[numbytes] = '\0';
-	printf("listener: packet contains \"%s\"\n", buf);
+	//printf("listener: packet contains \"%s\"\n", buf);
     string status = process_data(buf, numbytes, users);
     return status;
 }
@@ -193,14 +193,14 @@ void udpSendMsg(string message, int mysockfd)
 
 int main()
 {
-    cout << "[Server A] Booting up using UDP on port 41110 ";
+    cout << "[Server A] Booting up using UDP on port 41110" << endl;
     string newMsg = "";
     map<string, string> users = onStartUp();
     int sockfd = startServer();
     while(true)
     {
         newMsg = listen_pkts(sockfd, users);
-        cout << newMsg << endl;
+        //cout << newMsg << endl;
         udpSendMsg(newMsg, sockfd);
     }
     close(sockfd);

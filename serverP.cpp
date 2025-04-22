@@ -106,20 +106,20 @@ int startServer()
 	hints.ai_flags = AI_PASSIVE; // use my IP
 
 	if ((rv = getaddrinfo(NULL, MYPORT, &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		//fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 	}
 
 	// loop through all the results and bind to the first we can
 	for(p = servinfo; p != NULL; p = p->ai_next) {
 		if ((sockfd = socket(p->ai_family, p->ai_socktype,
 				p->ai_protocol)) == -1) {
-			perror("listener: socket");
+			//perror("listener: socket");
 			continue;
 		}
 
 		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
-			perror("listener: bind");
+			//perror("listener: bind");
 			continue;
 		}
 
@@ -127,12 +127,12 @@ int startServer()
 	}
 
 	if (p == NULL) {
-		fprintf(stderr, "listener: failed to bind socket\n");
+		//fprintf(stderr, "listener: failed to bind socket\n");
 	}
 
 	freeaddrinfo(servinfo);
 
-	printf("listener: waiting to recvfrom...\n");
+	//printf("listener: waiting to recvfrom...\n");
     return sockfd;
 }
 
@@ -200,6 +200,35 @@ string getStock(string user, string targetStock, string socketNum, map<string, v
 	return stockPosition; // user;stock;quantity;price;indexInVector;socketNum
 }
 
+string checkStock(string user, string targetStock, int quantity, string socketNum, map<string, vector<stock>> &portfolio)
+{
+	string checkSeq = "";
+	int quant = 0;
+	vector<stock> assignedStocks;
+	if(portfolio.find(user) != portfolio.end())
+	{
+		vector<stock> stocks = portfolio[user];
+		for (int index = 0; index < stocks.size(); index++)
+		{
+			if(stocks[index].stockName == targetStock)
+			{
+				quant = stocks[index].quantity;
+			}
+		}
+	}
+	// cout << "Requested quantity: " << quantity <<"\nCurrent quantity: "<< to_string(quant) << endl;
+	if(quantity > quant)
+	{
+		checkSeq = "check;" + user + ";" + targetStock + ";FAIL;" + socketNum; 
+
+	}
+	else
+	{
+		checkSeq = "check;" + user + ";" + targetStock + ";PASS;" + socketNum;
+	}
+	return checkSeq; // check;user;stock;pass/fail;socketNum
+}
+
 void updateStock(string user, string targetStock, int quantity, int indexNum, double price, map<string, vector<stock>> &portfolio)
 {
 	if (indexNum == -1)
@@ -212,8 +241,15 @@ void updateStock(string user, string targetStock, int quantity, int indexNum, do
 	}
 	else
 	{
-		portfolio[user][indexNum].quantity = quantity;
-		portfolio[user][indexNum].avgPrice = price;
+		if(quantity != 0)
+		{
+			portfolio[user][indexNum].quantity = quantity;
+			portfolio[user][indexNum].avgPrice = price;
+		}
+		else
+		{
+			portfolio[user].erase(portfolio[user].begin() + indexNum);
+		}
 	}
 }
 
@@ -231,6 +267,7 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
 	// retrieve;<user>;<stock_name>;<socket_Num>
 	// position;<user>;<socket_Num>
 	// update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
+	// check;<user>;<stock_name>;<quantity>;<socket_Num>
     while(getline(stream, parsedMsg, ';'))
     {
         parseNum++;
@@ -254,6 +291,17 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
         {
             socketNum = parsedMsg;
         }
+		else if(MsgType == "check" && parseNum >= 4)
+		{
+			if(parseNum == 4)
+			{
+				quantity = stoi(parsedMsg);
+			}
+			else if(parseNum == 5)
+			{
+				socketNum = parsedMsg;
+			}
+		}
 		else if(MsgType == "update" && parseNum >= 4)
         {
 			if(parseNum == 4)
@@ -276,10 +324,17 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
     }
     if(MsgType == "position")
     {
+		cout << "[Server P] Received a position request from the main server for Member: "<< user << endl;
         rawMsg = getPortfolio(user, portfolio);
 		newMsg = MsgType + ";" + user + ";" + rawMsg + "end;" + socketNum;
         return newMsg;
     }
+	else if(MsgType == "check")
+	{
+		cout << "[Server P] Received a sell request from the main server." << endl;
+		string checkMsg = checkStock(user, stockName, quantity, socketNum, portfolio);
+		return checkMsg; // check;user;stock;pass/fail;socketNum
+	}
     else if (MsgType == "retrieve")
     {
         newMsg = getStock(user, stockName, socketNum, portfolio);
