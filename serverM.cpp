@@ -459,7 +459,6 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
             getline(conStream, confirmation, ';');
             if (confirmation == "N")
             {
-
                 cout << "[Server M] Buy denied." << endl;
                 string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
                 UDPsend(QUOT_PORT, updateQuote, sockfd);

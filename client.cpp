@@ -368,8 +368,13 @@ void transact(int sockfd, string operation, string stock, string quantity, strin
     else
     {
         command = response + string(";") + user + ";" + quantity;
+        //return;
     }
     send(sockfd ,command.c_str(), command.size(), 0);
+    if(response == "N")
+    {
+        return;
+    }
     //sleep(2);
     string statusUpdate = recvString(sockfd);
     //cout << statusUpdate << endl;
