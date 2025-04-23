@@ -508,12 +508,5 @@ int main()
             cout << "Invalid option selected. Please try again." << endl;
         }
     }
-    /*
-    cout << "What port am I?" << endl;
-    int localPort = getLocalPort(M_SOCK);
-    cout << localPort << endl;
-    */
-    
-
     return 0;
 }
