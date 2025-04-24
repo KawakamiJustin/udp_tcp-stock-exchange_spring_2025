@@ -24,7 +24,8 @@
 
 using namespace std;
 
-// Get sockaddr, IPv4 or IPv6:
+// Taken from pollserver.c in Beej 7.2 poll() synchronous I/O multiplexing
+// Get sockaddr, IPv4 or IPv6
 void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) {
@@ -34,6 +35,7 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+// Taken from pollserver.c in Beej 7.2 poll() synchronous I/O multiplexing
 // Return a listening socket
 int get_listener_socket(void)
 {
@@ -85,6 +87,7 @@ int get_listener_socket(void)
     return listener;
 }
 
+// Taken from pollserver.c in Beej 7.2 poll() synchronous I/O multiplexing
 // Add a new file descriptor to the set
 void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size)
 {
@@ -101,6 +104,8 @@ void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size)
 
     (*fd_count)++;
 }
+
+// Taken from pollserver.c in Beej 7.2 poll() synchronous I/O multiplexing
 // Remove an index from the set
 void del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
 {
@@ -410,7 +415,7 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
         msg = UDPrecv(sockfd);
         cout << "[Server M] Received the response from server A using UDP over " << UDP_PORT << endl;
         send(client_sockfd, msg.c_str(), msg.size(), 0);
-        cout << "[Server M] Sent the respoonse from server A to the client using TCP over port " << PORT << endl;
+        cout << "[Server M] Sent the response from server A to the client using TCP over port " << PORT << endl;
     }
     if(choice == "position")
     {
@@ -640,28 +645,28 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
     }
     if(choice == "quote")
     {
-        string user, name;
-        getline(stream, user, ';');
-        getline(stream, name, ';');
-        if(name == "all")
+        getline(stream, stockName, ';');
+        getline(stream, userID, ';');
+        getline(stream, clientSock, ';');
+        if(stockName == "all")
         {
-            cout << "[Server M] Received a quote request from " << user << ", using TCP over port " << PORT << endl;
+            cout << "[Server M] Received a quote request from " << userID << ", using TCP over port " << PORT << endl;
         }
         else
         {
-            cout << "[Server M] Received a quote request from " << user << " for stock "<< name << ", using TCP over port " << PORT << endl;
+            cout << "[Server M] Received a quote request from " << userID << " for stock "<< stockName << ", using TCP over port " << PORT << endl;
         }
-        msg = receivedMsg;
+        msg = string("quote;") + stockName + string(";") + clientSock;
         UDPsend(QUOT_PORT, msg, sockfd);
         cout << "[Server M] Forwarded the quote request to server Q." << endl;
         string msgResponse = UDPrecv(sockfd);
-        if(name == "all")
+        if(stockName == "all")
         {
             cout << "[Server M] Received a quote response from server Q using UDP over " << UDP_PORT << endl;
         }
         else
         {
-            cout << "[Server M] Received a quote request from server Q for stock "<< name << ", using UDP over " << UDP_PORT << endl;
+            cout << "[Server M] Received a quote request from server Q for stock "<< stockName << ", using UDP over " << UDP_PORT << endl;
         }
         
 
@@ -760,13 +765,13 @@ int main(void)
 
                     } else {
                         buf[nbytes] = '\0';
-                        // printf("Server received from socket %d: %.*s\n", pfds[i].fd, nbytes, buf);
 
-
-                        // We got some good data from a client
+                        // Convert the buffer of char to a string then append which socket it was from
                         string recMessage(buf);
                         recMessage += ";" + to_string(sender_fd);
-                        operationType(recMessage, udp_sockfd, sender_fd); // new version
+
+                        // 
+                        operationType(recMessage, udp_sockfd, sender_fd); 
                     }
                 } // END handle data from client
             } // END got ready-to-read from poll()

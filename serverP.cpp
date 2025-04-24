@@ -33,6 +33,16 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+string lowercaseConvert(string userName)
+{
+    string lowercaseName = "";
+    for(char letter : userName)
+    {
+        lowercaseName += tolower(letter);
+    } 
+    return lowercaseName;
+}
+
 struct stock
 {
 	string stockName;
@@ -61,7 +71,8 @@ map<string, vector<stock>> onStartUp()
 			{
 				portfolio[userID] = stocks;
 			}
-			userID = info;
+			string userMix = info;
+			userID = lowercaseConvert(userMix);
 			//cout << "Parsing User: " << userID << endl;
 			stocks.clear();
 		}
@@ -314,7 +325,7 @@ string process_data(char *buf, int numbytes, map<string, vector<stock>> &portfol
         }
 		else if(parseNum == 2)
         {
-            user = parsedMsg;
+            user = lowercaseConvert(parsedMsg);
         }
         else if(parseNum == 3 && MsgType != "position")
         {
