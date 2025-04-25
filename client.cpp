@@ -114,7 +114,6 @@ string login(int sockfd)
         getline(cin, username);
     }
     cout << "Please enter the password: ";
-    //cin >> password;
     getline(cin, password);
     while(password.empty() || password.length() > 50)
     {
@@ -156,7 +155,7 @@ void parseAllQuotes(int sockfd)
     string newMsg = "";
     int parseNum = 0;
     int localPort = getLocalPort(sockfd);
-    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << "." << endl;
     while(getline(stream, parsedMsg, ';'))
     {
         parseNum++;
@@ -208,7 +207,7 @@ void parseQuote(int sockfd)
         }
     }
     int localPort = getLocalPort(sockfd);
-    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << "." << endl;
     if(stockPrice == "NA")
     {
         cout << stockName << " does not exist. Please try again."<< endl;
@@ -278,7 +277,7 @@ void parsePortfolio(int sockfd)
     string newMsg = "";
     int parseNum = 0;
     int localPort = getLocalPort(sockfd);
-    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << "." << endl;
     // position;James;S1;400;353.47;S2;178;500.00;end;5;131296.58
     while(getline(stream, parsedMsg, ';'))
     {
@@ -325,17 +324,17 @@ void parsePortfolio(int sockfd)
     }
 }
 
-void quote(int sockfd)
+void quote(int sockfd, string userID)
 {
-    string command = string("quote;all");
+    string command = string("quote;all;") + userID;
     cout << "[Client] Sent a quote request to the main server"<< endl;
     send(sockfd ,command.c_str(), command.size(), 0);
     parseAllQuotes(sockfd);
 }
 
-void quote(int sockfd, string name)
+void quote(int sockfd, string name, string userID)
 {
-    string command = string("quote;") + name;
+    string command = string("quote;") + name + string(";") + userID;
     cout << "[Client] Sent a quote request to the main server"<< endl;
     send(sockfd ,command.c_str(), command.size(), 0);
     parseQuote(sockfd);
@@ -350,7 +349,7 @@ void transact(int sockfd, string operation, string stock, string quantity, strin
         string sellValid = recvString(sockfd);
         if(sellValid == "FAIL")
         {
-            cout << "[Client] Error: " << user << " does not have enough shares of " << stock <<".\n ---Start a new request---\n" << endl;
+            cout << "[Client] Error: " << user << " does not have enough shares of " << stock <<".\n ---Start a new request---" << endl;
             return;
         }
         else if (sellValid == "stock_FAIL")
@@ -386,14 +385,14 @@ void transact(int sockfd, string operation, string stock, string quantity, strin
     getline(transactResult, stockTransact, ';');
     getline(transactResult, shareQuantity, ';');
     int localPort = getLocalPort(sockfd);
-    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << ".\n" << endl;
+    cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << "." << endl;
     if (operationType == "buy" && confirmation == "confirm")
     {
-        cout << userInfo << " successfully bought " << shareQuantity <<" shares of " << stockTransact << ".\n ---Start a new request---\n" << endl;
+        cout << userInfo << " successfully bought " << shareQuantity <<" shares of " << stockTransact << ".\n ---Start a new request---" << endl;
     }
     else if (operationType == "sell" && confirmation == "confirm")
     {
-        cout << userInfo << " successfully sold " << shareQuantity <<" shares of " << stockTransact << ".\n ---Start a new request---\n" << endl;
+        cout << userInfo << " successfully sold " << shareQuantity <<" shares of " << stockTransact << ".\n ---Start a new request---" << endl;
     }
 }
 
@@ -468,11 +467,11 @@ int main()
         {
             if(selectedOptions.size() == 2)
             {
-                quote(M_SOCK, selectedOptions[1]);
+                quote(M_SOCK, selectedOptions[1], user);
             }
             else if (selectedOptions.size() == 1)
             {
-                quote(M_SOCK);
+                quote(M_SOCK, user);
             }
             else
             {

@@ -15,16 +15,17 @@
 #include <vector>
 #include <map>
 
-#define PORT "45110"   // Port we're listening on
-#define UDP_PORT "44110"
-#define AUTH_PORT "41110"
-#define PORT_PORT "42110"
-#define QUOT_PORT "43110"
-#define MAXBUFLEN 512
+#define PORT "45110"        // TCP port
+#define UDP_PORT "44110"    // UDP port
+#define AUTH_PORT "41110"   // Authentication Server UDP port
+#define PORT_PORT "42110"   // Portfolio Server UDP port
+#define QUOT_PORT "43110"   // Quote Server UDP port
+#define MAXBUFLEN 512       // Max buffer size when receiving
 
 using namespace std;
 
-// Get sockaddr, IPv4 or IPv6:
+// Taken from pollserver.c in Beej 7.2 poll() synchronous I/O multiplexing
+// Get sockaddr, IPv4 or IPv6
 void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) {
@@ -34,6 +35,7 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+// Taken from pollserver.c in Beej 7.2 poll() synchronous I/O multiplexing
 // Return a listening socket
 int get_listener_socket(void)
 {
@@ -85,6 +87,7 @@ int get_listener_socket(void)
     return listener;
 }
 
+// Taken from pollserver.c in Beej 7.2 poll() synchronous I/O multiplexing
 // Add a new file descriptor to the set
 void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size)
 {
@@ -101,6 +104,8 @@ void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size)
 
     (*fd_count)++;
 }
+
+// Taken from pollserver.c in Beej 7.2 poll() synchronous I/O multiplexing
 // Remove an index from the set
 void del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
 {
@@ -110,67 +115,81 @@ void del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
     (*fd_count)--;
 }
 
+// Encryts the password from the client
 string passwordEncrypt(string receivedMsg)
 {
-    istringstream stream(receivedMsg);
+    istringstream stream(receivedMsg); // converst string to stream to parse the string
     string parsedMsg, MsgType, usersname, password, socketNum;
     string newMsg = "";
-    int parseNum = 0;
+    int parseNum = 0; // counter to determine which value is currently extracted from the stream
+
+    // parses stream based on semicolon delimiters
     while(getline(stream, parsedMsg, ';'))
     {
         parseNum++;
-        if(parseNum == 1)
+        if(parseNum == 1) // extracts "credentials"
         {
             MsgType = parsedMsg;
         }
-        if(parseNum == 2)
+        if(parseNum == 2) // extracts username
         {
             usersname = parsedMsg;
         }
-        if(parseNum == 3)
+        if(parseNum == 3) // extracts unencrypted password
         {
             password = parsedMsg;
         }
-        if(parseNum == 4)
+        if(parseNum == 4) // extracts the appended client socket (assigned by serverM poll)
         {
             socketNum = parsedMsg;
         }
     }
     cout << "[Server M] Received username " << usersname << " and password ****" << endl;
-    string encryptedPassword = "";
-    int shift = 3;
+    string encryptedPassword = ""; // empty string that gets appended to when converting characters
+    int shift = 3; // sets encryption shift
+
+    // alphabet and numbers to reference when shifting
     string uAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     string lAlphabet = "abcdefghijklmnopqrstuvwxyz";
     string numbers = "0123456789";
+
+    // shift password characters by 3
     for (char c : password)
     {
+        // Shift uppercase
         if(isupper(c))
         {
             int index = uAlphabet.find(c);
             int newIndex = (index + shift) % uAlphabet.length();
             encryptedPassword += uAlphabet[newIndex];
         }
+        // Shift lowercase
         else if(islower(c))
         {
             int index = lAlphabet.find(c);
             int newIndex = (index + shift) % lAlphabet.length();
             encryptedPassword += lAlphabet[newIndex];
         }
+        // Shift digits
         else if(isdigit(c))
         {
             int index = numbers.find(c);
             int newIndex = (index + shift) % numbers.length();
             encryptedPassword += numbers[newIndex];
         }
+        // Leave unknown characters alone
         else
         {
             encryptedPassword += c;
         }
     }
+    // New message to forward to server A
     newMsg = MsgType + ";" + usersname + ";" + encryptedPassword + ";" + socketNum;
     return newMsg;
 }
 
+// Partially inspired (converted to function instead of main) from Beej listener.c (datagram sockets example)
+// Starts udp listener socket to listen for incoming transmissions
 int startUDPServer()
 {
     int sockfd;
@@ -179,7 +198,7 @@ int startUDPServer()
 
     memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_INET; // set to AF_INET to use IPv4
-	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_socktype = SOCK_DGRAM;// UDP datagram
 	hints.ai_flags = AI_PASSIVE; // use my IP
 
 	if ((rv = getaddrinfo(NULL, UDP_PORT, &hints, &servinfo)) != 0) {
@@ -189,13 +208,13 @@ int startUDPServer()
 	// loop through all the results and bind to the first we can
 	for(p = servinfo; p != NULL; p = p->ai_next) {
 		if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-			perror("listener: socket");
+			//perror("listener: socket");
 			continue;
 		}
 
 		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
-			perror("listener: bind");
+			//perror("listener: bind");
 			continue;
 		}
 
@@ -203,7 +222,7 @@ int startUDPServer()
 	}
 
 	if (p == NULL) {
-		fprintf(stderr, "listener: failed to bind socket\n");
+		//fprintf(stderr, "listener: failed to bind socket\n");
 	}
 
 	freeaddrinfo(servinfo);
@@ -212,6 +231,8 @@ int startUDPServer()
     return sockfd;
 }
 
+// Partially inspired (converted to function instead of main) from Beej listener.c (datagram sockets example)
+// Listens for incoming transmissions to socket and converts incoming char buffer to a string
 string UDPrecv(int sockfd)
 {
     int numbytes;
@@ -231,20 +252,22 @@ string UDPrecv(int sockfd)
 	//printf("listener: got packet from %s\n",
 	//	inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
 	//printf("listener: packet is %d bytes long\n", numbytes);
-	//buf[numbytes] = '\0';
 	//printf("listener: packet contains \"%s\"\n", buf);
     buf[numbytes] = '\0';
     string rawData(buf);
     return rawData;
 }
 
+// Partially inspired (converted to function instead of main) from Beej talker.c (datagram sockets example)
+// Sends udp message to designated server (A, Q, and P)
+// Takes in string as input and the socket file description of server A
 void UDPsend(string serverPort, string message, int mysockfd)
 {
 	struct addrinfo hints, *servinfo;
 
-	memset(&hints, 0, sizeof hints);
+	memset(&hints, 0, sizeof hints); // Clears buffer
 	hints.ai_family = AF_INET; // set to AF_INET to use IPv4
-	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_socktype = SOCK_DGRAM; // UDP datagram
 
 	getaddrinfo("localhost", serverPort.c_str(), &hints, &servinfo);
 
@@ -253,6 +276,8 @@ void UDPsend(string serverPort, string message, int mysockfd)
 	freeaddrinfo(servinfo);
 }
 
+// struct that defines the stock object
+// includes stock name, the quantity in integers, and buy price represented as a double
 struct stock
 {
     string stockName;
@@ -260,6 +285,10 @@ struct stock
 	double avgPrice;
 };
 
+// calculates the profit in a user's profile
+// takes in the vector of stocks in the user profile consisting of stock objects
+// indexes through the vector and finds the corresponding quote in the map and subtracts 
+// the buy price from the current price before multiplying by the number of shares
 double profitCalc(map<string, double> quotes, vector<stock> userPosition)
 {
     double profit = 0.00;
@@ -271,83 +300,103 @@ double profitCalc(map<string, double> quotes, vector<stock> userPosition)
         quantity = userPosition[i].quantity;
         tempProfit = quantity * (quotePrice - userPosition[i].avgPrice);
         profit += tempProfit;
-        //cout << userPosition[i].stockName << " profit: " << tempProfit <<"\nUser Profit: " << to_string(profit) << endl;
     }
     return profit;
 }
 
+// Converts the messages received from serverQ and serverP containing all the quotes 
+//  listed on the market and all the positions for a user to a map and vector
+// Both the vector and map are used to calculate profit
+// The vector containing the user positions is converted to a string to be sent to the 
+//  client with the newly calculated profit attached
 string constructNewMsg(string userPort, string stockQuotes)
 {
-    map<string, double> quotes;
-    vector<stock> userPosition;
+    map<string, double> quotes; // map to contain all listed quotes
+    vector<stock> userPosition; // vector to contain entirety of user portfolio
     double stockPrice;
     int shareQuantity;
     string stockName, userName, sockNum;
     stock newStock;
-    /* 
-    User Portfolio: position;James;S1;400;353.47;S2;178;500.00;5
-    Current Quotes: quote;start;S1;697.46;S2;464.61;end;
-    */
-    istringstream stockString(stockQuotes);
+
+    // Example message formats received from server Q
+    // Server Q (stockQuotes): quote;start;S1;697.46;S2;464.61;end;
+    istringstream stockString(stockQuotes); // string converted to stream to parse quotes received by server Q
     string parsedMsg, msgType, startFlag;
     int parseNum = 0;
+    // Parsing values from stream
     while(getline(stockString, parsedMsg, ';'))
     {
         parseNum++;
+        // Message Type (should be "quote")
         if(parseNum == 1)
         {
             msgType = parsedMsg;
         }
+        // Start flag to determine first stock quote in message
         else if(parseNum == 2)
         {
             startFlag = parsedMsg;
         }
+        // Ends loop if end flag found for last quote
         else if (parsedMsg == "end")
         {
             break;
         }
+        // Odd indices in message represent stock names
         else if (parseNum % 2 == 1)
         {
             stockName = parsedMsg;
         }
+        // Even indicies represent the assigned price to each stock
         else
         {
-            stockPrice = stod(parsedMsg);
-            quotes[stockName] = stockPrice;
+            stockPrice = stod(parsedMsg); // convert the price to a double to allow usage in calculations
+            quotes[stockName] = stockPrice; // assign price to stock as a value to a key in map
         }
     }
 
     istringstream userString(userPort);
     parseNum = 0;
-    //position;James;S1;400;353.47;S2;178;500.00;end;5
+
+    // Example message formats received from server P
+    // Server P (userPort): position;James;S1;400;353.47;S2;178;500.00;5
+    // Parsing values from stream
     while(getline(userString, parsedMsg, ';'))
     {
         parseNum++;
+        // Message Type (should be "position)
         if(parseNum == 1)
         {
             msgType = parsedMsg;
         }
+        // Parse the user whose portfolio is being processed and presented
         else if(parseNum == 2)
         {
             userName = parsedMsg;
         }
+        // Ends message parsing if user has no positions in portfolio
         else if (parsedMsg == "NA")
         {
             string clientMsg = msgType + ";" + userName + ";position_FAIL;";
             break;
         }
+        // Breaks loop if last buy price has be parsed out based on wher "end" flag is
         else if (parsedMsg == "end")
         {
             break;
         }
+        // parses stock name based on if index is divisable by 3
         else if (parseNum % 3 == 0)
         {
             stockName = parsedMsg;
         }
+        // parses stock share quantity held based on if index has remainder 1 if divided by 3
         else if (parseNum % 3 == 1)
         {
             shareQuantity = stoi(parsedMsg);
         }
+        // parses stock price based on if index has remainder 2 if divided by 3
+        // Creates new stock object with other parsed attributes and appends it to vector
         else if (parseNum % 3 == 2)
         {
             stockPrice = stod(parsedMsg);
@@ -357,6 +406,8 @@ string constructNewMsg(string userPort, string stockQuotes)
             userPosition.push_back(newStock);
         }
     }
+    // passes vector and map for profit calculations
+    // sets formatting of prices to 100ths place and returns message to send to client
     double totalProfit = profitCalc(quotes, userPosition);
     ostringstream concatProfit;
     concatProfit << fixed << setprecision(2) << totalProfit;
@@ -364,6 +415,7 @@ string constructNewMsg(string userPort, string stockQuotes)
     return clientMsg;
 }
 
+// returns the assigned child socket number for the client if given message with socket appended at end
 int sockNum(string message)
 {
     int socketpos = message.find_last_of(';') + 1;
@@ -371,22 +423,26 @@ int sockNum(string message)
     return stoi(socketString);
 }
 
-string TCPrecv(int client__sockfd)
+// Partially inspired (extracted function from main) from Beej client.c "6.2 A Simple Stream Client"
+// Receives from specified client child socket then converts char buffer to a string
+string TCPrecv(int client_sockfd)
 {
-    char buf[MAXBUFLEN];
+    char buf[MAXBUFLEN]; // Max data size to receive
     memset(buf, 0, sizeof(buf)); // clear buffer
-    int nbytes = recv(client__sockfd, buf, sizeof buf, 0);
+    int nbytes = recv(client_sockfd, buf, sizeof buf, 0);
     buf[nbytes] = '\0';
     string rawData(buf);
     return rawData;
 }
 
+// Function to return avg buy price given the number of shares purchased and price per share
 double avgBuyPrice(int quantity, double price)
 {
     double avgPrice = (quantity * price)/quantity;
     return avgPrice;
 }
 
+// Function to return new avg buy price given the old quantity of shares and old average price and the new quaantity and price per share
 double avgBuyPriceNew(int quantity, double price, int quantityOld, double avgPriceOld)
 {
     double oldCost = quantityOld * avgBuyPrice(quantityOld, avgPriceOld);
@@ -395,13 +451,15 @@ double avgBuyPriceNew(int quantity, double price, int quantityOld, double avgPri
     return avgPrice;
 }
 
+// Parses incoming message from client to determine next steps
 void operationType(string receivedMsg, int sockfd, int client_sockfd)
 {
     string msg;
     istringstream stream(receivedMsg);
-    // cout << "operationType received message: " << receivedMsg << endl;
     string choice, subOp, userID, stockName, shares, price, clientSock, confirmation;
     getline(stream, choice, ';');
+
+    // Steps for authentication
     if(choice == "credentials")
     {
         msg = passwordEncrypt(receivedMsg);
@@ -410,8 +468,10 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
         msg = UDPrecv(sockfd);
         cout << "[Server M] Received the response from server A using UDP over " << UDP_PORT << endl;
         send(client_sockfd, msg.c_str(), msg.size(), 0);
-        cout << "[Server M] Sent the respoonse from server A to the client using TCP over port " << PORT << endl;
+        cout << "[Server M] Sent the response from server A to the client using TCP over port " << PORT << endl;
     }
+
+    // Steps for when a client wants their positions
     if(choice == "position")
     {
         // position;<user>;<socket_Num>
@@ -428,6 +488,8 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
         cout << "[Server M] Forwarded the gain to the client." << endl;
         send(client_sockfd, clientPos.c_str(), clientPos.size(), 0);
     }
+
+    // Steps for when a client wants to buy or sell shares
     if(choice == "transact")
     {
         getline(stream, subOp, ';');
@@ -485,8 +547,8 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
                 // user;stock;quantity;price;indexInVector;socketNum    Valid
                 // user;targetStock;NA;NA;-1;socketNum                  User does not own stock currently
                 // user;NA;NA;NA;-1;socketNum;                          User Not Found
-                // cout << "received from portfolio: " << clientPos << endl;
-                // parse message to extract information about the user's position
+
+                // parse message to extract information about the user's position if they own a stock
                 string position_userID, position_stockName, position_shares, position_index, position_price, position_clientSock;
                 istringstream clientInfo(clientPos);
                 getline(clientInfo, position_userID, ';');
@@ -575,7 +637,6 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
             else if(position_shares == "NA" && quote_price != "NA")
             {
                 string TCPReturnMsg = "FAIL";
-                //sleep(1);
                 send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
                 // Sell failed not enough shares
                 string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
@@ -585,7 +646,6 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
             }
             else if(resStatus == "FAIL")
             {
-                //sleep(1);
                 send(client_sockfd, resStatus.c_str(), resStatus.size(), 0);
                 // Sell failed not enough shares
                 string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
@@ -596,14 +656,11 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
             else
             {
                 string TCPReturnMsg = "PASS";
-                //sleep(1);
                 send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
-                //send(client_sockfd, quoteMsg.c_str(), quoteMsg.size(), 0);
                 sleep(1);
                 send(client_sockfd, quoteMsg.c_str(), quoteMsg.size(), 0); // Need to sleep to allow first send to finish
                 cout << "[Server M] Forwarded the sell confirmation to the client." << endl;
                 string conMsg = TCPrecv(client_sockfd);
-                // cout << "ServerM from Client Confirmation Message: " << conMsg << endl;
                 istringstream conStream(conMsg);
                 getline(conStream, confirmation, ';');
                 
@@ -638,38 +695,39 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
         }
         
     }
+
+    // steps for quote requests from client
     if(choice == "quote")
     {
-        string user, name;
-        getline(stream, user, ';');
-        getline(stream, name, ';');
-        if(name == "all")
+        getline(stream, stockName, ';');
+        getline(stream, userID, ';');
+        getline(stream, clientSock, ';');
+        if(stockName == "all")
         {
-            cout << "[Server M] Received a quote request from " << user << ", using TCP over port " << PORT << endl;
+            cout << "[Server M] Received a quote request from " << userID << ", using TCP over port " << PORT << endl;
         }
         else
         {
-            cout << "[Server M] Received a quote request from " << user << " for stock "<< name << ", using TCP over port " << PORT << endl;
+            cout << "[Server M] Received a quote request from " << userID << " for stock "<< stockName << ", using TCP over port " << PORT << endl;
         }
-        msg = receivedMsg;
+        msg = string("quote;") + stockName + string(";") + clientSock;
         UDPsend(QUOT_PORT, msg, sockfd);
         cout << "[Server M] Forwarded the quote request to server Q." << endl;
         string msgResponse = UDPrecv(sockfd);
-        if(name == "all")
+        if(stockName == "all")
         {
             cout << "[Server M] Received a quote response from server Q using UDP over " << UDP_PORT << endl;
         }
         else
         {
-            cout << "[Server M] Received a quote request from server Q for stock "<< name << ", using UDP over " << UDP_PORT << endl;
+            cout << "[Server M] Received a quote request from server Q for stock "<< stockName << ", using UDP over " << UDP_PORT << endl;
         }
-        
-
         send(client_sockfd, msgResponse.c_str(), msgResponse.size(), 0);
     }
 }
 
-// Main
+// Main (taken from Beej poll() Synchronous I/O Multiplexing)
+// Modified to run OperationType instead of sending back received messages to all connected clients
 int main(void)
 {
     int listener;     // Listening socket descriptor
@@ -760,13 +818,13 @@ int main(void)
 
                     } else {
                         buf[nbytes] = '\0';
-                        // printf("Server received from socket %d: %.*s\n", pfds[i].fd, nbytes, buf);
 
-
-                        // We got some good data from a client
+                        // Convert the buffer of char to a string then append which socket it was from
                         string recMessage(buf);
                         recMessage += ";" + to_string(sender_fd);
-                        operationType(recMessage, udp_sockfd, sender_fd); // new version
+
+                        // runs list of operations based on received message from client
+                        operationType(recMessage, udp_sockfd, sender_fd); 
                     }
                 } // END handle data from client
             } // END got ready-to-read from poll()
