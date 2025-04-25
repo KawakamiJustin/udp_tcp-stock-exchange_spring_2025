@@ -651,7 +651,7 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
             if(position_shares == "NA" && quote_price == "NA")
             {
                 string TCPReturnMsg = "stock_FAIL";
-                sleep(1);
+                //sleep(1);
                 send(client_sockfd, TCPReturnMsg.c_str(), TCPReturnMsg.size(), 0);
                 // Sell failed not enough shares
                 // string updateQuote = "update;" + userID + ";" + stockName + ";" + clientSock;
@@ -707,7 +707,7 @@ void operationType(string receivedMsg, int sockfd, int client_sockfd)
                     // update;<user>;<stock_name>;<quantity>;<price>;<index_number>;<socket_Num>
                     string updatePos = "update;" + position_userID + ";" + position_stockName + ";" + to_string(newShares) + ";" + position_price + ";" + position_index + ";" + position_clientSock;
                     UDPsend(PORT_PORT, updatePos, sockfd);
-                    sleep(1);
+                    //sleep(1);
                     string transactMsg = UDPrecv(sockfd); // "sell;confirm/deny;" + user + ";" + targetStock + ";" + to_string(quantity);
                     //cout << "Receiving update from serverP: " << transactMsg << endl;
                     send(client_sockfd, transactMsg.c_str(), transactMsg.size(), 0);
