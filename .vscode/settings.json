@@ -30,6 +30,7 @@
         "utility": "cpp",
         "vector": "cpp",
         "sstream": "cpp",
-        "iomanip": "cpp"
+        "iomanip": "cpp",
+        "xstring": "cpp"
     }
 }
