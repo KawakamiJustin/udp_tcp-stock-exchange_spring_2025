@@ -917,9 +917,9 @@ int main(void)
                         // Got error or connection closed by client
                         if (nbytes == 0) {
                             // Connection closed
-                            printf("pollserver: socket %d hung up\n", sender_fd);
+                            //printf("pollserver: socket %d hung up\n", sender_fd);
                         } else {
-                            perror("recv");
+                            //perror("recv");
                         }
 
                         close(pfds[i].fd); // Bye!
@@ -941,3 +941,4 @@ int main(void)
         } // END looping through file descriptors
     } // END for(;;)--and you thought it would never end!
 }
+// Main code heavily referenced from Beej poll()

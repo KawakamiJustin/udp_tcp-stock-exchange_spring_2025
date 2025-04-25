@@ -31,6 +31,8 @@
         "vector": "cpp",
         "sstream": "cpp",
         "iomanip": "cpp",
-        "xstring": "cpp"
+        "xstring": "cpp",
+        "xtree": "cpp",
+        "algorithm": "cpp"
     }
 }

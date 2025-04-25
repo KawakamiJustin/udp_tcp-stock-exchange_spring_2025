@@ -17,12 +17,13 @@
 #include <algorithm>
 #include <iomanip>
 
-#define MYPORT "42110"	// the port users will be connecting to
-#define PORTM "44110"
+#define MYPORT "42110"	// the port server M will connect to
+#define PORTM "44110" 	// server M UDP port
 
-#define MAXBUFLEN 512
+#define MAXBUFLEN 512 // Max supported buffer size to receive
 using namespace std;
 
+// Taken from Beej listener.c (datagram sockets example)
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -33,6 +34,7 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+// converts given string to lowercase
 string lowercaseConvert(string userName)
 {
     string lowercaseName = "";
@@ -43,12 +45,14 @@ string lowercaseConvert(string userName)
     return lowercaseName;
 }
 
+// struct to store values assigned to given stock
 struct stock
 {
 	string stockName;
 	int quantity;
 	double avgPrice;
 };
+
 
 map<string, vector<stock>> onStartUp()
 {
@@ -80,17 +84,14 @@ map<string, vector<stock>> onStartUp()
 		{
 			int space = info.find(' ');
         	stockInfo.stockName = info.substr(0, space);
-			//cout << "Adding stock: " << stockInfo.stockName << " for user: " << userID << endl;
 
 			info = info.substr(space + 1);
 			space = info.find(' ');
 			stockInfo.quantity = stoi(info.substr(0, space));
-			//cout << "Adding quantity: "<< stockInfo.quantity <<" for stock " << stockInfo.stockName << " for user: " << userID << endl;
 
         	info = info.substr(space + 1);
 			//space = info.find(' ');
 			stockInfo.avgPrice = stod(info);
-			//cout << "Adding avgprice: "<< stockInfo.avgPrice <<" for stock " << stockInfo.stockName << " for user: " << userID << endl;
 
 			stocks.push_back(stockInfo);
 		}

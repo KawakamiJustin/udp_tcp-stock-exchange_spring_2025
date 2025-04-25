@@ -21,6 +21,7 @@
 #define MAXBUFLEN 512 // Max supported buffer size for incoming messages
 using namespace std;
 
+// converts given string to lowercase
 string lowercaseConvert(string userName)
 {
     string lowercaseName = "";
@@ -56,6 +57,7 @@ map<string, string> onStartUp()
 // Function to ensure username is valid and the encrypted password matches the username key
 bool matchCredentials(string user_name, string encrypted_pw, map<string, string> users)
 {
+    //converts username is converted to lowercase to ensure compatibility
     string userKey = lowercaseConvert(user_name);
     if(users.count(userKey) > 0 && encrypted_pw == users[userKey])
     {
