@@ -125,7 +125,6 @@ int startServer()
 
     // frees up memory from getaddrinfo
 	freeaddrinfo(servinfo);
-    // Error debugging commented out
 	// printf("listener: waiting to recvfrom...\n");
 
     // socket file descriptor to use during send and receiving commands

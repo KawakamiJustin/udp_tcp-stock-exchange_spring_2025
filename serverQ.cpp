@@ -78,6 +78,8 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+// Partially inspired (converted to function instead of main) from Beej listener.c (datagram sockets example)
+// Starts udp listener socket to listen for incoming transmissions
 int startServer()
 {
     int sockfd;
@@ -89,7 +91,7 @@ int startServer()
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_flags = AI_PASSIVE; // use my IP
 
-	if ((rv = getaddrinfo(NULL, MYPORT, &hints, &servinfo)) != 0) {
+	if ((rv = getaddrinfo("localhost", MYPORT, &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 	}
 

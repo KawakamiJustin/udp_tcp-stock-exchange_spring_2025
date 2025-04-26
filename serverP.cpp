@@ -53,7 +53,7 @@ struct stock
 	double avgPrice;
 };
 
-// converts portfolios.txt to a map sith usernames as keys and a vector of stocks as values
+// converts portfolios.txt to a map with usernames as keys and a vector of stocks as values
 map<string, vector<stock>> onStartUp()
 {
     ifstream infile;
@@ -66,12 +66,14 @@ map<string, vector<stock>> onStartUp()
     vector<stock> stocks;
 	stock stockInfo;
 	
-	// read every line in txt file and parse out essenital information
+	// read every line in txt file and parse out essential information
     while(getline(infile, info))
     {
+		// parse out username (found by having 1 or 0 spaces in the line)
 		int spaceCount = count(info.begin() , info.end(), ' ');
 		if(!info.empty() && spaceCount < 2)
 		{
+			// if another username reached and the current username is populated, add the vector of stock postions to that user
 			if(!userID.empty())
 			{
 				portfolio[userID] = stocks;
@@ -80,6 +82,9 @@ map<string, vector<stock>> onStartUp()
 			userID = lowercaseConvert(userMix);
 			stocks.clear();
 		}
+
+		// parse out the stock information
+		// add the stock to a vector of other stocks
 		else if (!info.empty() && spaceCount >= 2)
 		{
 			int space = info.find(' ');
@@ -97,26 +102,28 @@ map<string, vector<stock>> onStartUp()
         
     }
 
+	// update last user with vector of stocks (not done in while loop)
 	if (!userID.empty())
 	{
 		portfolio[userID] = stocks;
 	}
-
 	return portfolio;
 }
 
+// Partially inspired (converted to function instead of main) from Beej listener.c (datagram sockets example)
+// Starts udp listener socket to listen for incoming transmissions
 int startServer()
 {
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
 	int rv;
 
-    memset(&hints, 0, sizeof hints);
+    memset(&hints, 0, sizeof hints); // clears buffer
 	hints.ai_family = AF_INET; // set to AF_INET to use IPv4
-	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_socktype = SOCK_DGRAM; // UDP datagram
 	hints.ai_flags = AI_PASSIVE; // use my IP
 
-	if ((rv = getaddrinfo(NULL, MYPORT, &hints, &servinfo)) != 0) {
+	if ((rv = getaddrinfo("localhost", MYPORT, &hints, &servinfo)) != 0) {
 		//fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 	}
 
@@ -124,6 +131,7 @@ int startServer()
 	for(p = servinfo; p != NULL; p = p->ai_next) {
 		if ((sockfd = socket(p->ai_family, p->ai_socktype,
 				p->ai_protocol)) == -1) {
+			// Error debugging commented out
 			//perror("listener: socket");
 			continue;
 		}
@@ -138,21 +146,27 @@ int startServer()
 	}
 
 	if (p == NULL) {
+		// Error debugging commented out
 		//fprintf(stderr, "listener: failed to bind socket\n");
 	}
 
+	// frees up memory from getaddrinfo
 	freeaddrinfo(servinfo);
 
 	//printf("listener: waiting to recvfrom...\n");
     return sockfd;
 }
 
+// returns the entirety of a user's portfolio
+// searches for a user then concatenates their vector of stocks into a single string
 string getPortfolio(string user,map<string, vector<stock>> &portfolio)
 {
 	string totalPosition = "";
 	string stockName, quant;
 	double avgPrice;
 	vector<stock> assignedStocks;
+
+	// finds the user in the map
 	if(portfolio.find(user) != portfolio.end())
 	{
 		assignedStocks.clear();
@@ -162,14 +176,12 @@ string getPortfolio(string user,map<string, vector<stock>> &portfolio)
 			stockName = stockInfo.stockName;
 			quant = to_string(stockInfo.quantity);
 			avgPrice = stockInfo.avgPrice;
-			//cout << avgPrice << endl;;
 			ostringstream stream;
             stream << fixed << setprecision(2) << avgPrice;
-			//cout << stream.str();
 			totalPosition += stockName + ";" + quant + ";" + stream.str() + ";";
-			//cout << totalPosition << endl;
 		}
 	}
+	// user does not exist in database
 	else
 	{
 		totalPosition = "NA;";

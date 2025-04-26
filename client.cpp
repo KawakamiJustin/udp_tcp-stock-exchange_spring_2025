@@ -337,7 +337,15 @@ void parsePortfolio(int sockfd)
             cout << "stock\tshares\tavg_buy_price" << endl;
             stockName = parsedMsg;
         }
-
+        // user doesn't own any shares of any stock
+        else if (parsedMsg == "end" && parseNum == 4)
+        {
+            getline(stream, parsedMsg, ';'); // skips over the assigned server M socket number
+            getline(stream, parsedMsg, ';'); // retrieves the profit appended at end of message
+            profit = parsedMsg;
+            cout << user <<"'s current profit is " << profit << "\n" << endl;
+            break;
+        }
         // prints the profit after getting end flag read in
         else if (parsedMsg == "end")
         {
