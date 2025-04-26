@@ -140,7 +140,6 @@ void updatePrice(map<string, priceData> &quotes, string stockName)
         else{
             quotes[stockName].priceIndex++;
         }
-        cout << endl;
     }
 }
 

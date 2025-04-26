@@ -307,6 +307,7 @@ void parsePortfolio(int sockfd)
     int parseNum = 0;
     int localPort = getLocalPort(sockfd);
     cout << "[Client] Received the response from the main server using TCP over port "<< to_string(localPort) << "." << endl;
+    
     // parse and display position string received from server M
     // position;<user>;<stock_1>;<stock_1_quantity>;<stock_1_price>;...;<stock_N>;<stock_N_quantity>;<stock_N_price>;end;<serverM_assigned_socket_number>;<user_total_profit>
     while(getline(stream, parsedMsg, ';'))
@@ -324,27 +325,28 @@ void parsePortfolio(int sockfd)
             user = parsedMsg;
         }
 
-        // user doesn't own any shares of any stock
+        // user doesn't exist in portfolio.txt
         else if(parseNum == 3 && parsedMsg == "NA")
         {
             // cout << user << "does not own any stock." << endl;
             break;
         }
-
-        // user owns shares of at least one stock and begins displaying portfolio
-        else if(parseNum == 3 && parsedMsg != "NA")
+        // user doesn't own any shares of any stock
+        else if (parsedMsg == "end" && parseNum == 3)
         {
             cout << "stock\tshares\tavg_buy_price" << endl;
-            stockName = parsedMsg;
-        }
-        // user doesn't own any shares of any stock
-        else if (parsedMsg == "end" && parseNum == 4)
-        {
+            cout << "NA\tNA\t0.00" << endl;
             getline(stream, parsedMsg, ';'); // skips over the assigned server M socket number
             getline(stream, parsedMsg, ';'); // retrieves the profit appended at end of message
             profit = parsedMsg;
             cout << user <<"'s current profit is " << profit << "\n" << endl;
             break;
+        }        
+        // user owns shares of at least one stock and begins displaying portfolio
+        else if(parseNum == 3 && parsedMsg != "NA" && parsedMsg != "end")
+        {
+            cout << "stock\tshares\tavg_buy_price" << endl;
+            stockName = parsedMsg;
         }
         // prints the profit after getting end flag read in
         else if (parsedMsg == "end")
