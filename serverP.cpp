@@ -53,7 +53,7 @@ struct stock
 	double avgPrice;
 };
 
-
+// converts portfolios.txt to a map sith usernames as keys and a vector of stocks as values
 map<string, vector<stock>> onStartUp()
 {
     ifstream infile;
@@ -65,7 +65,8 @@ map<string, vector<stock>> onStartUp()
     string info, userID;
     vector<stock> stocks;
 	stock stockInfo;
-
+	
+	// read every line in txt file and parse out essenital information
     while(getline(infile, info))
     {
 		int spaceCount = count(info.begin() , info.end(), ' ');
@@ -77,7 +78,6 @@ map<string, vector<stock>> onStartUp()
 			}
 			string userMix = info;
 			userID = lowercaseConvert(userMix);
-			//cout << "Parsing User: " << userID << endl;
 			stocks.clear();
 		}
 		else if (!info.empty() && spaceCount >= 2)
@@ -90,7 +90,6 @@ map<string, vector<stock>> onStartUp()
 			stockInfo.quantity = stoi(info.substr(0, space));
 
         	info = info.substr(space + 1);
-			//space = info.find(' ');
 			stockInfo.avgPrice = stod(info);
 
 			stocks.push_back(stockInfo);
