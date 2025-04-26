@@ -18,7 +18,7 @@
 
 #define MYPORT "43110"
 #define PORTM "44110"
-#define MAXBUFLEN 512
+#define MAXBUFLEN 4096
 using namespace std;
 
 struct priceData

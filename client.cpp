@@ -17,7 +17,7 @@
 using namespace std;
 
 #define PORT 45110 // the port client will be connecting to
-#define MAXBUFLEN 512 // Max size of buffer when accepting messages
+#define MAXBUFLEN 4096 // Max size of buffer when accepting messages
 
 // From Beej client.c (6.2 A Simple Stream Client)
 // get sockaddr,IPv4 or IPv6:

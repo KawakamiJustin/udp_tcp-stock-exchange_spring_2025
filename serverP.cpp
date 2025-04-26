@@ -20,7 +20,7 @@
 #define MYPORT "42110"	// the port server M will connect to
 #define PORTM "44110" 	// server M UDP port
 
-#define MAXBUFLEN 512 // Max supported buffer size to receive
+#define MAXBUFLEN 4096 // Max supported buffer size to receive
 using namespace std;
 
 // Taken from Beej listener.c (datagram sockets example)

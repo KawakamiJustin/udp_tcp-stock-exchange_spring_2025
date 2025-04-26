@@ -20,7 +20,7 @@
 #define AUTH_PORT "41110"   // Authentication Server UDP port
 #define PORT_PORT "42110"   // Portfolio Server UDP port
 #define QUOT_PORT "43110"   // Quote Server UDP port
-#define MAXBUFLEN 512       // Max buffer size when receiving
+#define MAXBUFLEN 4096       // Max buffer size when receiving
 
 using namespace std;
 
@@ -250,7 +250,7 @@ string UDPrecv(int sockfd)
 	}
 
 	//printf("listener: got packet from %s\n",
-	//	inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
+		//inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
 	//printf("listener: packet is %d bytes long\n", numbytes);
 	//printf("listener: packet contains \"%s\"\n", buf);
     buf[numbytes] = '\0';
