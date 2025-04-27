@@ -33,6 +33,7 @@
         "iomanip": "cpp",
         "xstring": "cpp",
         "xtree": "cpp",
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "xlocale": "cpp"
     }
 }

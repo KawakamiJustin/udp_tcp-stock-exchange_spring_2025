@@ -331,6 +331,7 @@ void parsePortfolio(int sockfd)
             // cout << user << "does not own any stock." << endl;
             break;
         }
+
         // user doesn't own any shares of any stock
         else if (parsedMsg == "end" && parseNum == 3)
         {
@@ -341,13 +342,15 @@ void parsePortfolio(int sockfd)
             profit = parsedMsg;
             cout << user <<"'s current profit is " << profit << "\n" << endl;
             break;
-        }        
+        }
+
         // user owns shares of at least one stock and begins displaying portfolio
         else if(parseNum == 3 && parsedMsg != "NA" && parsedMsg != "end")
         {
             cout << "stock\tshares\tavg_buy_price" << endl;
             stockName = parsedMsg;
         }
+        
         // prints the profit after getting end flag read in
         else if (parsedMsg == "end")
         {

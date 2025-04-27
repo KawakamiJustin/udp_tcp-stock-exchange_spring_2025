@@ -199,7 +199,6 @@ string listen_pkts(int sockfd, map<string, string> users)
 		//inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
 	//printf("listener: packet is %d bytes long\n", numbytes);
 	buf[numbytes] = '\0';
-	//printf("listener: packet contains \"%s\"\n", buf);
     string status = process_data(buf, numbytes, users);
     return status;
 }

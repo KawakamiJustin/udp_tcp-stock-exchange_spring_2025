@@ -16,17 +16,19 @@
 #include <vector>
 #include <iomanip>
 
-#define MYPORT "43110"
-#define PORTM "44110"
-#define MAXBUFLEN 4096
+#define MYPORT "43110" // UDP Port Number for Server Q
+#define PORTM "44110" // UDP Port Number for Server M
+#define MAXBUFLEN 4096 // Max supported buffer size for incoming messages
 using namespace std;
 
+// struct for stock price updating, contains the list of prices and the index of the current price to use
 struct priceData
 {
     vector<double> prices;
     int priceIndex;
 };
 
+// converts quotes.txt to a map
 map<string, priceData> onStartUp()
 {
     ifstream infile;
@@ -36,38 +38,45 @@ map<string, priceData> onStartUp()
     }
     map<string, priceData> stocks; // creates new map
     string info;
-    vector<double> prices;
+    vector<double> prices; // vector of prices
+
+    // reads in all lines from the txt file
     while(getline(infile, info))
     {
-        prices.clear();
-        int space = info.find(' '); 
-        string stockName = info.substr(0, space);
-        info = info.substr(space + 1);
+        prices.clear(); // clear vector every line
+        int space = info.find(' '); // find the first space index
+        string stockName = info.substr(0, space); // return the stock name
+        info = info.substr(space + 1); // start sttring at the next character after the first space
         string price;
+
+        // copy all prices assigned to stock until end, denoted by next line
         while(!info.empty())
         {   
             space = info.find(' ');
             
+            // end of line, no spaces left
             if (space == string::npos)
             {
                 price = info;
                 info.clear();
             }
+            // keep adding prices and find next space
             else
             {
                 price = info.substr(0, space);
                 info = info.substr(space + 1);
             }
+            
+            // add the prices to the vector as a double
             prices.push_back(stod(price));
         }
         stocks[stockName] = {prices, 0}; // populates map
     }
-
     infile.close();
-
     return stocks;
 }
 
+// Taken from Beej listener.c (datagram sockets example)
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -122,65 +131,83 @@ int startServer()
     return sockfd;
 }
 
+// increments index of stock price for specified stock
 void updatePrice(map<string, priceData> &quotes, string stockName)
 {
     int index;
     vector<double> prices;
     prices.clear();
+
+    // finds stock by name (redundant step)
     if(quotes.find(stockName) != quotes.end())
     {
         prices = quotes[stockName].prices;
         index = quotes[stockName].priceIndex;
         double curprice = prices[index];
         cout << "[Server Q] Received a time forward request for " << stockName << " the current price of that stock is " << curprice << " at time " << index << endl;
+
+        // wrap around if at end of prices
         if(index == prices.size() - 1)
         {
             quotes[stockName].priceIndex = 0;
         }
-        else{
+
+        // increment index by one
+        else
+        {
             quotes[stockName].priceIndex++;
         }
     }
 }
 
+// return the quote for specified stock(s)
 string getQuote(map<string, priceData> &quotes, string stockName)
 {
     string quoteMsg = "";
     string quoteName = "";
     double quotePrice;
     priceData priceInfo;
+
+    // server or user requests all available stocks
     if (stockName == "all")
     {
         cout << "[Server Q] Received a quote request from the main server." << endl;
         quoteMsg += "start;";
-        int mapSize = quotes.size();
+
+        // append the stock and current price for each stock to one string
         for (const auto &entry : quotes)
         {
             quoteName = entry.first;
             priceInfo = entry.second;
             quotePrice = priceInfo.prices[priceInfo.priceIndex];
-
+            
+            // keep the price in the string to 100ths place
             ostringstream stream;
             stream << fixed << setprecision(2) << quotePrice;
-
             quoteMsg += quoteName + ";" + stream.str() + ";";
         }
         quoteMsg += "end";
         cout << "[Server Q] Returned all stock quotes." << endl;
     }
+
+    // server or user requests speccific stock
     else
     {
         cout << "[Server Q] Received a quote request from the main server for stock " << stockName << "." << endl;
+
+        // try to find the stock and return the price
         if(quotes.find(stockName) != quotes.end())
         {
             priceInfo = quotes[stockName];
             quotePrice = priceInfo.prices[priceInfo.priceIndex];
-
+            
+            // keep the price in the string to 100ths place
             ostringstream stream;
             stream << fixed << setprecision(2) << quotePrice;
-
             quoteMsg = stockName + ";" + stream.str();
         }
+
+        // stock not found
         else
         {
             quoteMsg = stockName + ";NA";
@@ -190,6 +217,7 @@ string getQuote(map<string, priceData> &quotes, string stockName)
     return quoteMsg;
 }
 
+// convert the data receied to a string then parse out the important information
 string process_data(char *buf, int numbytes, map<string, priceData> &quotes)
 {
     buf[numbytes] = '\0';
@@ -198,6 +226,8 @@ string process_data(char *buf, int numbytes, map<string, priceData> &quotes)
     string parsedMsg, MsgType, whichQuote, socketNum;
     string newMsg = "";
     int parseNum = 0;
+
+    // parse out the operation and dependencies
     while(getline(stream, parsedMsg, ';'))
     {
         parseNum++;
@@ -205,24 +235,34 @@ string process_data(char *buf, int numbytes, map<string, priceData> &quotes)
         {
             MsgType = parsedMsg;
         }
+
+        // parse out the quote requested
         if(parseNum == 2 && MsgType != "update")
         {
             whichQuote = parsedMsg;
         }
+
+        // parse out the socket number for quote type message
         if(parseNum == 3 && MsgType != "update")
         {
             socketNum = parsedMsg;
         }
+
+        // parse out which stock price to update 
         else if (parseNum == 3 && MsgType == "update")
         {
             whichQuote = parsedMsg;
         }
     }
+
+    // update next steps and returns string to ensure no response is sent back
     if(MsgType == "update")
     {
         updatePrice(quotes, whichQuote);
         return "DONE";
     }
+
+    // return the requested quote back to the main function, which will send back to the server
     else if (MsgType == "quote")
     {
         string msg = getQuote(quotes, whichQuote);
@@ -231,6 +271,8 @@ string process_data(char *buf, int numbytes, map<string, priceData> &quotes)
     }
 }
 
+// Partially inspired (converted to function instead of main) from Beej listener.c (datagram sockets example)
+// Listens for incoming transmissions to socket set up before and converts incoming char buffer to a string for post processing
 string listen_pkts(int sockfd, map<string, priceData> &quotes)
 {
     int numbytes;
@@ -245,42 +287,45 @@ string listen_pkts(int sockfd, map<string, priceData> &quotes)
 		//perror("recvfrom");
 		exit(1);
 	}
-
-	//printf("listener: got packet from %s\n",
-	//	inet_ntop(their_addr.ss_family,get_in_addr((struct sockaddr *)&their_addr),	s, sizeof s));
-	//printf("listener: packet is %d bytes long\n", numbytes);
 	buf[numbytes] = '\0';
-	//printf("listener: packet contains \"%s\"\n", buf);
     string status = process_data(buf, numbytes, quotes);
     return status;
 }
 
+// Partially inspired (converted to function instead of main) from Beej talker.c (datagram sockets example)
+// Sends udp message to main server
+// Takes in string as input and the socket file description of server Q
 void udpSendMsg(string message, int mysockfd)
 {
 	struct addrinfo hints, *servinfo;
 
-	memset(&hints, 0, sizeof hints);
+	memset(&hints, 0, sizeof hints); // clears buffer before sending
 	hints.ai_family = AF_INET; // set to AF_INET to use IPv4
-	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_socktype = SOCK_DGRAM; // UDP datagram
 
+    // Gets address info of the main server with PORTM (Main server Port Number)
 	getaddrinfo("localhost", PORTM, &hints, &servinfo);
 
     sendto(mysockfd, message.c_str(), message.length(), 0, servinfo->ai_addr, servinfo->ai_addrlen);
 
+    // Clears address info of server M from memory
 	freeaddrinfo(servinfo);
 }
 
+// Main function that setups up listener and populates map with credentials
+// Continously listens then responds to transmissions
 int main()
 {
     cout << "[Server Q] Booting up using UDP on port 43110 " << endl;
     string newMsg = "";
     map<string, priceData> quotes = onStartUp();
     int sockfd = startServer();
-    char buffer[MAXBUFLEN];
     string stockName;
     while(true)
     {
         newMsg = listen_pkts(sockfd, quotes);
+
+        // sends a response if necessary
         if(newMsg != "DONE")
         {
             udpSendMsg(newMsg, sockfd);
